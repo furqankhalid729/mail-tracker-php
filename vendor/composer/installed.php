@@ -3,7 +3,7 @@
         'name' => 'mailcrm/mailcrm',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => '34f5c1be348a2de47483d9c7e3fb30d50c5fdb6f',
+        'reference' => '2af691387caa7afe296fd73723900b58f950e212',
         'type' => 'project',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -13,7 +13,7 @@
         'mailcrm/mailcrm' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => '34f5c1be348a2de47483d9c7e3fb30d50c5fdb6f',
+            'reference' => '2af691387caa7afe296fd73723900b58f950e212',
             'type' => 'project',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),

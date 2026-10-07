@@ -1,0 +1,28 @@
+# Place this file as ".htaccess" in the domain/subdomain web root (e.g. public_html/)
+# when the app lives in a subfolder but should be reached at the root URL.
+#
+#   public_html/
+#   ├── .htaccess            ← this file
+#   └── mail-tracker-php/    ← the app (update by uploading into this folder)
+#
+# Set APP_URL in .env to the ROOT url, e.g. APP_URL=https://tools.arraynest.com
+# The app's own mail-tracker-php/.htaccess keeps protecting config/, vendor/, uploads/, .env, etc.
+
+Options -Indexes
+DirectoryIndex index.php
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Force HTTPS
+    RewriteCond %{HTTPS} !=on
+    RewriteCond %{HTTP:X-Forwarded-Proto} !https
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+    # Keep Let's Encrypt / domain verification working
+    RewriteRule ^\.well-known/ - [L]
+
+    # Serve everything from the app folder (internal rewrite, URL stays at the root)
+    RewriteCond %{REQUEST_URI} !^/mail-tracker-php/
+    RewriteRule ^(.*)$ mail-tracker-php/$1 [L]
+</IfModule>

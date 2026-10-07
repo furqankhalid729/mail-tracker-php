@@ -35,7 +35,7 @@ $envWrittenTo = null;
 $done = false;
 
 $checks = [
-    'PHP 8.2+' => version_compare(PHP_VERSION, '8.2.0', '>='),
+    'PHP 8.1+' => version_compare(PHP_VERSION, '8.1.0', '>='),
     'PDO MySQL' => extension_loaded('pdo_mysql'),
     'OpenSSL' => extension_loaded('openssl'),
     'mbstring' => extension_loaded('mbstring'),

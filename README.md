@@ -1,6 +1,6 @@
 # Mail CRM
 
-A lightweight email CRM and campaign manager that runs on ordinary shared hosting such as Hostinger Web Hosting or any cPanel host. It needs only **PHP 8.2+, MySQL/MariaDB, Apache and cron**. There is no Node.js, Redis, Docker or long-running worker.
+A lightweight email CRM and campaign manager that runs on ordinary shared hosting such as Hostinger Web Hosting or any cPanel host. It needs only **PHP 8.1+, MySQL/MariaDB, Apache and cron**. There is no Node.js, Redis, Docker or long-running worker.
 
 - **Customers.** Search, filters, sorting, server-side pagination, bulk actions, tags, custom fields, CSV import/export and a profile timeline.
 - **Campaigns.** Build audiences from tags and filters (for example Shopify AND USA) or pick people one at a time. Each contact gets a personalised copy of the template, and the queue is processed by cron.
@@ -14,7 +14,7 @@ A lightweight email CRM and campaign manager that runs on ordinary shared hostin
 
 | | |
 |---|---|
-| PHP | 8.2 or newer with `pdo_mysql`, `openssl`, `mbstring`, `curl`, `fileinfo`, `dom` (all standard on Hostinger) |
+| PHP | 8.1 or newer with `pdo_mysql`, `openssl`, `mbstring`, `curl`, `fileinfo`, `dom` (all standard on Hostinger) |
 | Database | MySQL 5.7+ or MariaDB 10.3+ |
 | Web server | Apache with `.htaccess` (`mod_rewrite`) |
 | Background | Cron (hPanel → Advanced → Cron Jobs). An HTTP fallback is included. |
@@ -38,7 +38,7 @@ A lightweight email CRM and campaign manager that runs on ordinary shared hostin
      ```
      Use separate values for `ENCRYPTION_KEY`, `CRON_SECRET` and `WEBHOOK_SECRET`. **Never change `ENCRYPTION_KEY` later**, because stored mail passwords and tokens are encrypted with it.
 6. **Composer.** This is not needed on the server, because `vendor/` is uploaded. If you change dependencies, run `composer install --no-dev` locally and upload `vendor/` again.
-7. **PHP version.** hPanel → *Advanced → PHP Configuration* → select **PHP 8.2** or newer. Under *PHP options*, set `display_errors = Off` and `upload_max_filesize` ≥ 16M.
+7. **PHP version.** hPanel → *Advanced → PHP Configuration* → select **PHP 8.1** or newer (8.2+ recommended). Under *PHP options*, set `display_errors = Off` and `upload_max_filesize` ≥ 16M.
 8. **HTTPS.** hPanel → *Security → SSL*: install the free SSL certificate. Keep `FORCE_HTTPS=true` in `.env`. The root `.htaccess` also redirects to HTTPS.
 9. **Cron.** hPanel → *Advanced → Cron Jobs* → *Custom*. Add the jobs below, replacing `USERNAME` and the path. **Settings → Cron & webhooks** inside the app shows the exact lines for your server.
    ```
