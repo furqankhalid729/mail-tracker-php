@@ -1,0 +1,12 @@
+{
+  "private": true,
+  "description": "Build-time only: compiles Tailwind CSS. Not needed on the server.",
+  "scripts": {
+    "build:css": "tailwindcss -i ./assets/css/src.css -o ./assets/css/app.css --minify",
+    "watch:css": "tailwindcss -i ./assets/css/src.css -o ./assets/css/app.css --watch"
+  },
+  "devDependencies": {
+    "@tailwindcss/forms": "^0.5.9",
+    "tailwindcss": "^3.4.17"
+  }
+}

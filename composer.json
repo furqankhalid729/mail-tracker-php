@@ -1,0 +1,14 @@
+{
+    "name": "mailcrm/mailcrm",
+    "description": "Lightweight email CRM and campaign manager for shared hosting",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "php": ">=8.2",
+        "phpmailer/phpmailer": "^6.9"
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    }
+}

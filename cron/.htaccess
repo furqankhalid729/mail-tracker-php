@@ -1,0 +1,7 @@
+# Cron scripts run from CLI. Over HTTP each script requires the CRON_SECRET bearer token.
+Options -Indexes
+<FilesMatch "^_">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+</FilesMatch>

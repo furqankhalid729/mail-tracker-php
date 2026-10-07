@@ -1,0 +1,38 @@
+# --- Secrets / environment ---
+.env
+.env.*
+!.env.example
+
+# --- Runtime data (never commit customer files or logs) ---
+/storage/logs/*
+!/storage/logs/.gitkeep
+!/storage/logs/.htaccess
+/storage/installed.lock
+/uploads/*
+!/uploads/.htaccess
+!/uploads/.gitkeep
+
+# --- Build tooling (only needed locally to compile Tailwind) ---
+/node_modules/
+npm-debug.log*
+
+# --- Dependencies ---
+# vendor/ is intentionally COMMITTED: shared hosting has no Composer at runtime.
+# Only ignore Composer's local tooling files.
+/vendor/bin/
+composer.phar
+
+# --- IDE / OS ---
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Misc ---
+*.log
+*.sql.gz
+*.bak
+/.phpunit.cache/
