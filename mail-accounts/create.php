@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/init.php';
 require_auth();
-require_role('admin');
+require_permission('mail_accounts.manage');
 $ws = ws_id();
 
 if (is_post()) {

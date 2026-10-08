@@ -31,12 +31,14 @@ $viewUrl = fn(array $extra = []) => url('campaigns/view.php', array_merge(['id' 
         </div>
         <p class="page-subtitle">
             <?= $account ? 'From ' . e($account['email']) : '<span class="text-amber-600">No sender</span>' ?> ·
-            <?= $template ? 'Template <a class="text-indigo-600" href="' . e(url('templates/edit.php', ['id' => $template['id']])) . '">' . e($template['name']) . '</a>' : '<span class="text-amber-600">No template</span>' ?>
+            <?= $template ? 'Template ' . (allowed('templates.manage') ? '<a class="text-indigo-600" href="' . e(url('templates/edit.php', ['id' => $template['id']])) . '">' . e($template['name']) . '</a>' : e($template['name'])) : '<span class="text-amber-600">No template</span>' ?>
             <?php if ($campaign['started_at']): ?> · started <?= e(format_dt($campaign['started_at'], 'M j, Y')) ?><?php endif; ?>
         </p>
         <?php if ($campaign['description']): ?><p class="mt-1 max-w-2xl text-sm text-slate-500"><?= e($campaign['description']) ?></p><?php endif; ?>
     </div>
+    <?php if (allowed('campaigns.manage')): ?>
     <div class="flex flex-wrap gap-2">
+        <a href="<?= e(url('tasks/create.php', ['campaign_id' => $cid])) ?>" class="btn-secondary"><?= icon('tasks', 'h-4 w-4') ?> Add task</a>
         <?php if ($campaign['status'] !== 'archived'): ?>
             <a href="<?= e(url('campaigns/contacts.php', ['id' => $cid])) ?>" class="btn-secondary"><?= icon('plus', 'h-4 w-4') ?> Add contacts</a>
         <?php endif; ?>
@@ -70,6 +72,9 @@ $viewUrl = fn(array $extra = []) => url('campaigns/view.php', array_merge(['id' 
             </div>
         </div>
     </div>
+    <?php else: ?>
+    <a href="<?= e(url('tasks/create.php', ['campaign_id' => $cid])) ?>" class="btn-secondary"><?= icon('tasks', 'h-4 w-4') ?> Add task</a>
+    <?php endif; ?>
 </div>
 
 <?php if ($campaign['status'] === 'active' && $account && $account['status'] !== 'active'): ?>
@@ -205,7 +210,7 @@ $viewUrl = fn(array $extra = []) => url('campaigns/view.php', array_merge(['id' 
         <?= csrf_field() ?><input type="hidden" name="action" value="remove">
         <div x-show="selected.length" x-cloak class="flex items-center gap-3 border-b border-indigo-100 bg-indigo-50/60 px-4 py-2 text-sm">
             <span class="font-medium text-indigo-900"><span x-text="selected.length"></span> selected</span>
-            <button class="btn-danger btn-sm">Remove from campaign</button>
+            <?php if (allowed('campaigns.manage')): ?><button class="btn-danger btn-sm">Remove from campaign</button><?php endif; ?>
         </div>
         <div class="overflow-x-auto">
             <table class="table">
@@ -236,7 +241,7 @@ $viewUrl = fn(array $extra = []) => url('campaigns/view.php', array_merge(['id' 
                         <td class="whitespace-nowrap text-xs text-slate-500"><?= e(time_ago($r['last_activity_at'] ?? $r['assigned_at'])) ?></td>
                     </tr>
                 <?php endforeach; ?>
-                <?php if (!$rows): ?><tr><td colspan="8" class="py-12 text-center text-slate-400"><?= $filters ? 'No contacts match these filters.' : 'No contacts yet.' ?> <a class="text-indigo-600" href="<?= e(url('campaigns/contacts.php', ['id' => $cid])) ?>">Add contacts</a></td></tr><?php endif; ?>
+                <?php if (!$rows): ?><tr><td colspan="8" class="py-12 text-center text-slate-400"><?= $filters ? 'No contacts match these filters.' : 'No contacts yet.' ?> <?php if (allowed('campaigns.manage')): ?><a class="text-indigo-600" href="<?= e(url('campaigns/contacts.php', ['id' => $cid])) ?>">Add contacts</a><?php endif; ?></td></tr><?php endif; ?>
                 </tbody>
             </table>
         </div>

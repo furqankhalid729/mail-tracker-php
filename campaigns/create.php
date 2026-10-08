@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/init.php';
 require_auth();
+require_permission('campaigns.manage');
 $ws = ws_id();
 
 if (is_post()) {

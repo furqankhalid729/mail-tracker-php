@@ -48,6 +48,7 @@ $active_nav = $active_nav ?? '';
                         <div class="border-b border-slate-100 px-3 py-2">
                             <div class="text-sm font-medium text-slate-900"><?= e($user['name'] ?? '') ?></div>
                             <div class="truncate text-xs text-slate-500"><?= e($user['email'] ?? '') ?></div>
+                            <div class="mt-1.5"><?= role_badge(user_role()) ?></div>
                         </div>
                         <a class="dropdown-item" href="<?= e(url('settings/index.php', ['tab' => 'profile'])) ?>"><?= icon('cog', 'h-4 w-4') ?> Profile &amp; settings</a>
                         <form method="post" action="<?= e(url('logout.php')) ?>">

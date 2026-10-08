@@ -18,7 +18,7 @@ require __DIR__ . '/../includes/header.php';
 ?>
 <div class="page-header">
     <div><h1 class="page-title">Mail accounts</h1><p class="page-subtitle">Mailboxes used to send campaigns and receive replies.</p></div>
-    <?php if (can('admin')): ?><a href="<?= e(url('mail-accounts/create.php')) ?>" class="btn-primary"><?= icon('plus', 'h-4 w-4') ?> Add account</a><?php endif; ?>
+    <?php if (allowed('mail_accounts.manage')): ?><a href="<?= e(url('mail-accounts/create.php')) ?>" class="btn-primary"><?= icon('plus', 'h-4 w-4') ?> Add account</a><?php endif; ?>
 </div>
 
 <div class="grid gap-4 lg:grid-cols-2">
@@ -44,7 +44,7 @@ require __DIR__ . '/../includes/header.php';
                     </div>
                 </div>
             </div>
-            <?php if (can('admin')): ?>
+            <?php if (allowed('mail_accounts.manage')): ?>
             <div class="flex flex-wrap items-center gap-2 border-t border-slate-100 px-5 py-3">
                 <form method="post" action="<?= e(url('mail-accounts/test.php')) ?>"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int) $a['id'] ?>"><input type="hidden" name="type" value="connection"><button class="btn-secondary btn-sm">Test connection</button></form>
                 <form method="post" action="<?= e(url('mail-accounts/test.php')) ?>" class="flex items-center gap-1">
@@ -75,7 +75,7 @@ require __DIR__ . '/../includes/header.php';
             <span class="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400"><?= icon('at', 'h-6 w-6') ?></span>
             <h3 class="mt-3 text-sm font-semibold">No mail accounts yet</h3>
             <p class="mt-1 text-sm text-slate-500">Connect SMTP or Gmail to start sending.</p>
-            <?php if (can('admin')): ?><a href="<?= e(url('mail-accounts/create.php')) ?>" class="btn-primary mt-4">Add account</a><?php endif; ?>
+            <?php if (allowed('mail_accounts.manage')): ?><a href="<?= e(url('mail-accounts/create.php')) ?>" class="btn-primary mt-4">Add account</a><?php endif; ?>
         </div>
     <?php endif; ?>
 </div>

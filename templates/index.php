@@ -23,7 +23,7 @@ require __DIR__ . '/../includes/header.php';
 ?>
 <div class="page-header">
     <div><h1 class="page-title">Email templates</h1><p class="page-subtitle">Reusable messages with personalisation variables.</p></div>
-    <a href="<?= e(url('templates/create.php')) ?>" class="btn-primary"><?= icon('plus', 'h-4 w-4') ?> New template</a>
+    <?php if (allowed('templates.manage')): ?><a href="<?= e(url('templates/create.php')) ?>" class="btn-primary"><?= icon('plus', 'h-4 w-4') ?> New template</a><?php endif; ?>
 </div>
 
 <form class="mb-4 max-w-sm"><input type="search" name="q" value="<?= e($q) ?>" class="input" placeholder="Search templates…"></form>
@@ -33,7 +33,7 @@ require __DIR__ . '/../includes/header.php';
         <div class="card flex flex-col">
             <div class="flex-1 p-5">
                 <div class="flex items-start justify-between gap-2">
-                    <a href="<?= e(url('templates/edit.php', ['id' => $t['id']])) ?>" class="font-semibold text-slate-900 hover:text-indigo-600"><?= e($t['name']) ?></a>
+                    <?php if (allowed('templates.manage')): ?><a href="<?= e(url('templates/edit.php', ['id' => $t['id']])) ?>" class="font-semibold text-slate-900 hover:text-indigo-600"><?= e($t['name']) ?></a><?php else: ?><span class="font-semibold text-slate-900"><?= e($t['name']) ?></span><?php endif; ?>
                     <?php if ($t['campaigns']): ?><span class="badge badge-indigo"><?= (int) $t['campaigns'] ?> campaign<?= $t['campaigns'] > 1 ? 's' : '' ?></span><?php endif; ?>
                 </div>
                 <p class="mt-1 truncate text-sm text-slate-600"><?= e($t['subject']) ?></p>
@@ -43,11 +43,13 @@ require __DIR__ . '/../includes/header.php';
                 <span class="pl-2 text-xs text-slate-400">Updated <?= e(time_ago($t['updated_at'])) ?></span>
                 <div class="flex">
                     <button type="button" class="btn-icon tooltip" data-tip="Preview" @click="preview = <?= e(json_encode(['name' => $t['name'], 'subject' => $t['subject'], 'html' => (string) $t['html_body']])) ?>"><?= icon('eye', 'h-4 w-4') ?></button>
+                    <?php if (allowed('templates.manage')): ?>
                     <a href="<?= e(url('templates/edit.php', ['id' => $t['id']])) ?>" class="btn-icon tooltip" data-tip="Edit"><?= icon('pencil', 'h-4 w-4') ?></a>
                     <form method="post" action="<?= e(url('templates/duplicate.php')) ?>"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int) $t['id'] ?>"><button class="btn-icon tooltip" data-tip="Duplicate"><?= icon('copy', 'h-4 w-4') ?></button></form>
                     <form method="post" action="<?= e(url('templates/delete.php')) ?>" data-confirm="Delete template “<?= e($t['name']) ?>”?<?= $t['campaigns'] ? ' Campaigns using it will need a new template before sending more emails.' : '' ?>" data-confirm-button="Delete">
                         <?= csrf_field() ?><input type="hidden" name="id" value="<?= (int) $t['id'] ?>"><button class="btn-icon tooltip hover:!text-red-600" data-tip="Delete"><?= icon('trash', 'h-4 w-4') ?></button>
                     </form>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -58,7 +60,7 @@ require __DIR__ . '/../includes/header.php';
             <span class="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400"><?= icon('template', 'h-6 w-6') ?></span>
             <h3 class="mt-3 text-sm font-semibold"><?= $q ? 'No templates match' : 'No templates yet' ?></h3>
             <p class="mt-1 text-sm text-slate-500">Templates power campaigns and speed up manual emails.</p>
-            <a href="<?= e(url('templates/create.php')) ?>" class="btn-primary mt-4">Create template</a>
+            <?php if (allowed('templates.manage')): ?><a href="<?= e(url('templates/create.php')) ?>" class="btn-primary mt-4">Create template</a><?php endif; ?>
         </div>
     <?php endif; ?>
 

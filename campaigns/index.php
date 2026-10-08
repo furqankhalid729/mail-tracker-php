@@ -38,7 +38,7 @@ require __DIR__ . '/../includes/header.php';
 ?>
 <div class="page-header">
     <div><h1 class="page-title">Campaigns</h1><p class="page-subtitle">Personalised outreach, sent safely in small batches by cron.</p></div>
-    <a href="<?= e(url('campaigns/create.php')) ?>" class="btn-primary"><?= icon('plus', 'h-4 w-4') ?> New campaign</a>
+    <?php if (allowed('campaigns.manage')): ?><a href="<?= e(url('campaigns/create.php')) ?>" class="btn-primary"><?= icon('plus', 'h-4 w-4') ?> New campaign</a><?php endif; ?>
 </div>
 
 <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -83,7 +83,7 @@ require __DIR__ . '/../includes/header.php';
             <div class="empty-state">
                 <span class="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400"><?= icon('megaphone', 'h-6 w-6') ?></span>
                 <h3 class="mt-3 text-sm font-semibold">No campaigns<?= $status ? ' with this status' : ' yet' ?></h3>
-                <a href="<?= e(url('campaigns/create.php')) ?>" class="btn-primary mt-4">Create campaign</a>
+                <?php if (allowed('campaigns.manage')): ?><a href="<?= e(url('campaigns/create.php')) ?>" class="btn-primary mt-4">Create campaign</a><?php endif; ?>
             </div>
         <?php endif; ?>
     </div>

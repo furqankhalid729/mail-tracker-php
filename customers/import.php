@@ -5,6 +5,7 @@
  */
 require_once __DIR__ . '/../includes/init.php';
 require_auth();
+require_permission('customers.import');
 $ws = ws_id();
 
 const IMPORT_BATCH = 500;

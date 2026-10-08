@@ -5,6 +5,7 @@
  */
 require_once __DIR__ . '/../includes/init.php';
 require_auth();
+require_permission('campaigns.manage');
 require_post();
 $ws = ws_id();
 $campaign = find_or_404('campaigns', input_int('id'));

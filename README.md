@@ -6,6 +6,8 @@ A lightweight email CRM and campaign manager that runs on ordinary shared hostin
 - **Campaigns.** Build audiences from tags and filters (for example Shopify AND USA) or pick people one at a time. Each contact gets a personalised copy of the template, and the queue is processed by cron.
 - **Email.** A composer with templates, `{{variables}}`, live preview, attachments and drafts. Sends through SMTP (PHPMailer) or Gmail OAuth.
 - **Tracking.** Opens (approximate), signed click redirects, unsubscribe (including RFC 8058 one-click), delivery and bounces (webhooks + IMAP DSN), and replies (IMAP / Gmail API with Message-ID matching).
+- **Team & roles.** Several Super Admins per workspace, plus Admin, Manager, Email Marketer and Member roles. Admins can create logins for teammates directly.
+- **Tasks.** Create tasks, assign them to teammates, set priority and due dates, post progress (status, %, comments) and follow the team's workload in a progress report.
 - **CRM.** A drag-and-drop pipeline board (the CRM stage is kept separate from the email status), an inbox with threaded replies, notes, a global activity feed, analytics charts and a dashboard.
 
 ---
@@ -65,6 +67,25 @@ A lightweight email CRM and campaign manager that runs on ordinary shared hostin
 - `https://yourdomain.com/.env`, `/config/config.php`, `/vendor/` and `/uploads/` all return **403**.
 - `ALLOW_REGISTRATION=false` once your team has accounts. Add teammates in *Settings → Members*.
 
+### Upgrading an existing install
+Import `migrations/001_roles_and_tasks.sql` once (phpMyAdmin → *Import*). It adds the new roles and the task tables, and it is safe to run again. Fresh installs get these from `database.sql`.
+
+---
+
+## Roles & permissions
+
+| Role | Can do |
+|---|---|
+| **Super Admin** | Everything, including managing other Super Admins. A workspace can have several. |
+| **Admin** | Members, settings and mail accounts. Cannot change or create Super Admins. |
+| **Manager** | Assigns tasks to anyone, sees all tasks and the team progress report, deletes and exports customers. |
+| **Email Marketer** | Campaigns and templates, customer import, works on their own tasks. |
+| **Member** | Customers, notes and inbox, views campaigns, works on their own tasks. |
+
+Each role also has everything the roles below it have. The rules live in one place, `PERMISSIONS` in `includes/permissions.php`. Change the minimum role there to adjust who can do what.
+
+**Tasks.** Everyone can create tasks. Managers and above can assign tasks to anyone. Other roles' tasks are assigned to themselves, and they see only tasks assigned to them or created by them. The assignee, the creator or a manager can post progress. Marking a task *done* sets it to 100%, and posting progress on a to-do task moves it to *in progress*.
+
 ---
 
 ## How sending works
@@ -102,7 +123,7 @@ The PHP built-in server ignores `.htaccess`, so test the access rules on Apache.
 
 ## Project layout
 ```
-customers/ campaigns/ inbox/ activity/ templates/ mail-accounts/ tags/ settings/   pages (+ _form/_save partials)
+customers/ campaigns/ tasks/ inbox/ activity/ templates/ mail-accounts/ tags/ settings/   pages (+ _form/_save partials)
 api/            JSON endpoints (kanban, campaigns, customers, tags, activity, search)
 tracking/       open.php (pixel), click.php (signed redirect)
 unsubscribe/    public unsubscribe + one-click
@@ -110,6 +131,7 @@ webhooks/       email.php delivery/bounce receiver
 cron/           short-lived background jobs
 includes/       auth, csrf, db helpers, queue, email, tracking, IMAP client, MIME parser, sanitizer
 config/         config.php (.env loader), database.php, mail.php, constants.php
+migrations/     SQL upgrades for existing installs (import once, in order)
 uploads/        attachments + CSV imports (deny-all .htaccess; set UPLOAD_PATH to move outside public_html)
 storage/logs/   application + PHP error logs
 ```

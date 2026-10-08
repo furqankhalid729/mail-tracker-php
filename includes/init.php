@@ -40,6 +40,7 @@ require_once __DIR__ . '/imap.php';
 require_once __DIR__ . '/webhooks.php';
 require_once __DIR__ . '/customers.php';
 require_once __DIR__ . '/campaigns.php';
+require_once __DIR__ . '/tasks.php';
 
 set_exception_handler(function (Throwable $e): void {
     app_log('error', $e->getMessage(), ['file' => $e->getFile(), 'line' => $e->getLine(), 'trace' => $e->getTraceAsString()]);

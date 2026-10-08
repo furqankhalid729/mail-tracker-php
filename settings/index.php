@@ -11,8 +11,11 @@ if (is_post()) {
     $action = (string) input('action');
     $back = url('settings/index.php', ['tab' => $tab]);
 
-    if (in_array($action, ['workspace', 'sending', 'tracking', 'member_add', 'member_role', 'member_remove'], true)) {
-        require_role('admin');
+    if (in_array($action, ['workspace', 'sending', 'tracking'], true)) {
+        require_permission('settings.manage');
+    }
+    if (in_array($action, ['member_add', 'member_role', 'member_remove'], true)) {
+        require_permission('members.manage');
     }
     switch ($action) {
         case 'workspace':
@@ -64,21 +67,54 @@ if (is_post()) {
 
         case 'member_add':
             $email = strtolower(trim((string) input('email')));
-            $role = in_array(input('role'), ['admin', 'member'], true) ? input('role') : 'member';
-            $user = q_one('SELECT id, name FROM users WHERE email = ?', [$email]);
-            if (!$user) {
-                flash('error', 'No account with that email. Ask them to register first, then add them here.');
+            $role = (string) input('role');
+            if (!in_array($role, assignable_roles(), true)) {
+                flash('error', 'You cannot give that role.');
                 break;
             }
-            q('INSERT IGNORE INTO workspace_members (workspace_id, user_id, role, created_at) VALUES (?, ?, ?, ?)', [$ws, $user['id'], $role, now()]);
-            flash('success', $user['name'] . ' can now access this workspace.');
+            if (!is_valid_email($email)) {
+                keep_old_input();
+                flash_errors(['member_email' => 'Enter a valid email address.']);
+                break;
+            }
+            $user = q_one('SELECT id, name FROM users WHERE email = ?', [$email]);
+            if (!$user) {
+                // No account yet: create a login for them (they can change the password under Profile)
+                $errs = validate($_POST, ['name' => 'required|max:120', 'password' => 'required|min:8|max:200'], ['password' => 'Temporary password']);
+                if ($errs) {
+                    keep_old_input();
+                    flash_errors($errs + ['member_email' => 'No account uses this email yet, so enter a name and a temporary password to create one.']);
+                    break;
+                }
+                $name = trim((string) input('name'));
+                transaction(function () use ($email, $name, $role, $ws) {
+                    $id = db_insert('users', [
+                        'name' => $name,
+                        'email' => $email,
+                        'password_hash' => password_hash((string) $_POST['password'], PASSWORD_DEFAULT),
+                        'current_workspace_id' => $ws,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                    db_insert('workspace_members', ['workspace_id' => $ws, 'user_id' => $id, 'role' => $role, 'created_at' => now()]);
+                });
+                flash('success', 'Account created for ' . $name . ' as ' . role_label($role) . '. Share the email and temporary password with them.');
+                break;
+            }
+            if (q_val('SELECT 1 FROM workspace_members WHERE workspace_id = ? AND user_id = ?', [$ws, $user['id']])) {
+                flash('info', $user['name'] . ' is already a member. Change their role in the list.');
+                break;
+            }
+            db_insert('workspace_members', ['workspace_id' => $ws, 'user_id' => $user['id'], 'role' => $role, 'created_at' => now()]);
+            flash('success', $user['name'] . ' can now access this workspace as ' . role_label($role) . '.');
             break;
 
         case 'member_role':
             $memberId = input_int('user_id');
             $role = (string) input('role');
-            if (!in_array($role, ['owner', 'admin', 'member'], true) || ($role === 'owner' && user_role() !== 'owner')) {
-                flash('error', 'Invalid role.');
+            $target = q_one('SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?', [$ws, $memberId]);
+            if (!$target || !in_array($role, assignable_roles(), true) || !can_manage_member($target['role'])) {
+                flash('error', 'You cannot give that role.');
                 break;
             }
             if ($memberId === user_id()) {
@@ -86,13 +122,13 @@ if (is_post()) {
                 break;
             }
             q('UPDATE workspace_members SET role = ? WHERE workspace_id = ? AND user_id = ?', [$role, $ws, $memberId]);
-            flash('success', 'Role updated.');
+            flash('success', 'Role changed to ' . role_label($role) . '.');
             break;
 
         case 'member_remove':
             $memberId = input_int('user_id');
             $target = q_one('SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?', [$ws, $memberId]);
-            if (!$target || $memberId === user_id() || ($target['role'] === 'owner' && user_role() !== 'owner')) {
+            if (!$target || $memberId === user_id() || !can_manage_member($target['role'])) {
                 flash('error', 'You cannot remove this member.');
                 break;
             }
@@ -132,11 +168,13 @@ if (is_post()) {
     redirect($back);
 }
 
-$members = q_all("SELECT u.id, u.name, u.email, m.role, m.created_at FROM workspace_members m JOIN users u ON u.id = m.user_id WHERE m.workspace_id = ? ORDER BY FIELD(m.role, 'owner', 'admin', 'member'), u.name", [$ws]);
+$members = q_all("SELECT u.id, u.name, u.email, m.role, m.created_at FROM workspace_members m JOIN users u ON u.id = m.user_id WHERE m.workspace_id = ? ORDER BY FIELD(m.role, 'owner', 'admin', 'manager', 'marketer', 'member'), u.name", [$ws]);
 $user = current_user();
 $lastQueueRun = q_val("SELECT MAX(processed_at) FROM email_jobs WHERE status IN ('completed','failed')");
 $lastInboxCheck = q_val('SELECT MAX(inbox_checked_at) FROM mail_accounts WHERE workspace_id = ?', [$ws]);
-$isAdmin = can('admin');
+$isAdmin = allowed('settings.manage');
+$canManageMembers = allowed('members.manage');
+$roleOptions = assignable_roles();
 
 $page_title = 'Settings';
 $active_nav = 'settings';
@@ -144,7 +182,7 @@ require __DIR__ . '/../includes/header.php';
 $tabs = ['workspace' => 'Workspace', 'sending' => 'Sending limits', 'tracking' => 'Tracking & privacy', 'members' => 'Members', 'profile' => 'Profile', 'cron' => 'Cron & webhooks'];
 $disabled = $isAdmin ? '' : 'disabled';
 ?>
-<div class="page-header"><div><h1 class="page-title">Settings</h1><p class="page-subtitle"><?= e($workspace['name']) ?> · your role: <?= e(user_role()) ?></p></div></div>
+<div class="page-header"><div><h1 class="page-title">Settings</h1><p class="page-subtitle"><?= e($workspace['name']) ?> · your role: <?= e(role_label(user_role())) ?></p></div></div>
 
 <div class="grid gap-6 lg:grid-cols-4">
     <nav class="flex gap-1 overflow-x-auto lg:flex-col">
@@ -211,16 +249,16 @@ $disabled = $isAdmin ? '' : 'disabled';
                     <tr>
                         <td><div class="font-medium text-slate-900"><?= e($m['name']) ?><?= (int) $m['id'] === user_id() ? ' <span class="text-xs text-slate-400">(you)</span>' : '' ?></div><div class="text-xs text-slate-500"><?= e($m['email']) ?></div></td>
                         <td>
-                            <?php if ($isAdmin && (int) $m['id'] !== user_id() && ($m['role'] !== 'owner' || user_role() === 'owner')): ?>
+                            <?php if ((int) $m['id'] !== user_id() && can_manage_member($m['role'])): ?>
                                 <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="member_role"><input type="hidden" name="user_id" value="<?= (int) $m['id'] ?>">
                                     <select name="role" class="input !w-auto !py-1 text-xs" onchange="this.form.submit()">
-                                        <?php foreach (user_role() === 'owner' ? ['owner', 'admin', 'member'] : ['admin', 'member'] as $r): ?><option value="<?= $r ?>" <?= $m['role'] === $r ? 'selected' : '' ?>><?= ucfirst($r) ?></option><?php endforeach; ?>
+                                        <?php foreach ($roleOptions as $r): ?><option value="<?= $r ?>" <?= $m['role'] === $r ? 'selected' : '' ?>><?= e(role_label($r)) ?></option><?php endforeach; ?>
                                     </select></form>
-                            <?php else: ?><?= status_badge($m['role']) ?><?php endif; ?>
+                            <?php else: ?><?= role_badge($m['role']) ?><?php endif; ?>
                         </td>
                         <td class="text-xs text-slate-500"><?= e(format_dt($m['created_at'], 'M j, Y')) ?></td>
                         <td class="text-right">
-                            <?php if ($isAdmin && (int) $m['id'] !== user_id() && ($m['role'] !== 'owner' || user_role() === 'owner')): ?>
+                            <?php if ((int) $m['id'] !== user_id() && can_manage_member($m['role'])): ?>
                                 <form method="post" data-confirm="Remove <?= e($m['name']) ?> from this workspace?" data-confirm-button="Remove"><?= csrf_field() ?><input type="hidden" name="action" value="member_remove"><input type="hidden" name="user_id" value="<?= (int) $m['id'] ?>"><button class="btn-ghost btn-sm text-red-600">Remove</button></form>
                             <?php endif; ?>
                         </td>
@@ -229,13 +267,33 @@ $disabled = $isAdmin ? '' : 'disabled';
                 </tbody>
             </table>
         </div>
-        <?php if ($isAdmin): ?>
-        <form method="post" class="card">
+        <?php if ($canManageMembers): ?>
+        <form method="post" class="card" x-data="{ role: <?= e(json_encode((string) old('role', 'marketer'))) ?> }">
             <?= csrf_field() ?><input type="hidden" name="action" value="member_add">
-            <div class="card-header"><div><h2 class="card-title">Add member</h2><p class="text-xs text-slate-500">The person must already have an account.</p></div></div>
-            <div class="card-body flex flex-col gap-2 sm:flex-row"><input type="email" name="email" class="input" placeholder="teammate@company.com" required><select name="role" class="input sm:w-40"><option value="member">Member</option><option value="admin">Admin</option></select><button class="btn-primary">Add</button></div>
+            <div class="card-header"><div><h2 class="card-title">Add team member</h2><p class="text-xs text-slate-500">If they already have an account, only the email is needed. Otherwise enter a name and a temporary password to create their login.</p></div></div>
+            <div class="card-body grid gap-4 sm:grid-cols-2">
+                <div><label class="label" for="m_email">Email</label><input type="email" id="m_email" name="email" class="input" value="<?= e(old('email')) ?>" placeholder="teammate@company.com" required><?= field_error($errors, 'member_email') ?></div>
+                <div>
+                    <label class="label" for="m_role">Role</label>
+                    <select id="m_role" name="role" class="input" x-model="role">
+                        <?php foreach ($roleOptions as $r): ?><option value="<?= $r ?>"><?= e(role_label($r)) ?></option><?php endforeach; ?>
+                    </select>
+                    <?php foreach ($roleOptions as $r): ?><p class="help" x-show="role === '<?= $r ?>'" x-cloak><?= e(ROLE_DESCRIPTIONS[$r]) ?></p><?php endforeach; ?>
+                </div>
+                <div><label class="label" for="m_name">Name <span class="font-normal text-slate-400">(new accounts)</span></label><input id="m_name" name="name" class="input" value="<?= e(old('name')) ?>" maxlength="120" placeholder="Jane Doe"><?= field_error($errors, 'name') ?></div>
+                <div><label class="label" for="m_password">Temporary password <span class="font-normal text-slate-400">(new accounts)</span></label><input type="password" id="m_password" name="password" class="input" minlength="8" autocomplete="new-password"><?= field_error($errors, 'password') ?></div>
+                <div class="flex justify-end sm:col-span-2"><button class="btn-primary"><?= icon('plus', 'h-4 w-4') ?> Add member</button></div>
+            </div>
         </form>
         <?php endif; ?>
+        <div class="card overflow-hidden">
+            <div class="card-header"><div><h2 class="card-title">What each role can do</h2><p class="text-xs text-slate-500">A workspace can have several Super Admins.</p></div></div>
+            <ul class="divide-y divide-slate-100">
+                <?php foreach (ROLE_LABELS as $r => $l): ?>
+                    <li class="flex flex-col gap-1 px-5 py-3 sm:flex-row sm:items-center sm:gap-4"><span class="shrink-0 sm:w-36"><?= role_badge($r) ?></span><span class="text-sm text-slate-600"><?= e(ROLE_DESCRIPTIONS[$r]) ?></span></li>
+                <?php endforeach; ?>
+            </ul>
+        </div>
 
     <?php elseif ($tab === 'profile'): ?>
         <form method="post" class="card">

@@ -43,8 +43,8 @@ require __DIR__ . '/../includes/header.php';
         <p class="page-subtitle"><?= number_format($total) ?> <?= $filters ? 'matching' : 'total' ?> contacts</p>
     </div>
     <div class="flex flex-wrap gap-2">
-        <a href="<?= e(url('customers/export.php', $_GET)) ?>" class="btn-secondary"><?= icon('download', 'h-4 w-4') ?> Export</a>
-        <a href="<?= e(url('customers/import.php')) ?>" class="btn-secondary"><?= icon('upload', 'h-4 w-4') ?> Import CSV</a>
+        <?php if (allowed('customers.export')): ?><a href="<?= e(url('customers/export.php', $_GET)) ?>" class="btn-secondary"><?= icon('download', 'h-4 w-4') ?> Export</a><?php endif; ?>
+        <?php if (allowed('customers.import')): ?><a href="<?= e(url('customers/import.php')) ?>" class="btn-secondary"><?= icon('upload', 'h-4 w-4') ?> Import CSV</a><?php endif; ?>
         <a href="<?= e(url('customers/create.php')) ?>" class="btn-primary"><?= icon('plus', 'h-4 w-4') ?> Add customer</a>
     </div>
 </div>
@@ -146,11 +146,11 @@ require __DIR__ . '/../includes/header.php';
                 <option value="">Choose action…</option>
                 <option value="add_tag">Add tag</option>
                 <option value="remove_tag">Remove tag</option>
-                <option value="add_to_campaign">Add to campaign</option>
+                <?php if (allowed('campaigns.manage')): ?><option value="add_to_campaign">Add to campaign</option><?php endif; ?>
                 <option value="set_crm_status">Set CRM stage</option>
                 <option value="set_status">Set status</option>
-                <option value="export">Export CSV</option>
-                <option value="delete">Delete</option>
+                <?php if (allowed('customers.export')): ?><option value="export">Export CSV</option><?php endif; ?>
+                <?php if (allowed('customers.delete')): ?><option value="delete">Delete</option><?php endif; ?>
             </select>
             <select name="tag_id" x-show="action === 'add_tag' || action === 'remove_tag'" class="input !w-auto !py-1.5">
                 <?php foreach ($allTags as $t): ?><option value="<?= (int) $t['id'] ?>"><?= e($t['name']) ?></option><?php endforeach; ?>
@@ -206,10 +206,12 @@ require __DIR__ . '/../includes/header.php';
                     <td class="whitespace-nowrap text-right">
                         <a href="<?= e(url('customers/email.php', ['customer_id' => $c['id']])) ?>" class="btn-icon tooltip" data-tip="Send email"><?= icon('send', 'h-4 w-4') ?></a>
                         <a href="<?= e(url('customers/edit.php', ['id' => $c['id']])) ?>" class="btn-icon tooltip" data-tip="Edit"><?= icon('pencil', 'h-4 w-4') ?></a>
+                        <?php if (allowed('customers.delete')): ?>
                         <form method="post" action="<?= e(url('customers/delete.php')) ?>" class="inline" data-confirm="Delete <?= e($name) ?> and all of their emails, notes and activity?" data-confirm-button="Delete">
                             <?= csrf_field() ?><input type="hidden" name="id" value="<?= (int) $c['id'] ?>">
                             <button class="btn-icon tooltip hover:!text-red-600" data-tip="Delete"><?= icon('trash', 'h-4 w-4') ?></button>
                         </form>
+                        <?php endif; ?>
                     </td>
                 </tr>
             <?php endforeach; ?>

@@ -49,6 +49,12 @@ $emails = q_all(
     [$ws, $cid]
 );
 $notes = q_all('SELECT n.*, u.name author FROM notes n LEFT JOIN users u ON u.id = n.user_id WHERE n.customer_id = ? AND n.workspace_id = ? ORDER BY n.created_at DESC', [$cid, $ws]);
+[$taskWhere, $taskParams] = task_visibility_sql();
+$customerTasks = q_all(
+    "SELECT t.*, a.name assignee_name FROM tasks t LEFT JOIN users a ON a.id = t.assigned_to
+     WHERE $taskWhere AND t.customer_id = ? ORDER BY t.status IN ('done','cancelled'), t.due_date IS NULL, t.due_date, t.id DESC LIMIT 10",
+    [...$taskParams, $cid]
+);
 
 $page_title = $name;
 $active_nav = 'customers';
@@ -104,10 +110,12 @@ $actionUrl = url('customers/actions.php');
                             <button class="dropdown-item" name="action" value="unsubscribe">Mark unsubscribed</button>
                         <?php endif; ?>
                     </form>
+                    <?php if (allowed('customers.delete')): ?>
                     <form method="post" action="<?= e(url('customers/delete.php')) ?>" data-confirm="Delete <?= e($name) ?> and all related emails, notes and activity?" data-confirm-button="Delete">
                         <?= csrf_field() ?><input type="hidden" name="id" value="<?= $cid ?>">
                         <button class="dropdown-item text-red-600">Delete customer</button>
                     </form>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -271,6 +279,21 @@ $actionUrl = url('customers/actions.php');
                     <?php endforeach; ?>
                 </div>
             </form>
+        </div>
+        <div class="card">
+            <div class="card-header"><h2 class="card-title">Tasks</h2><a href="<?= e(url('tasks/create.php', ['customer_id' => $cid])) ?>" class="inline-flex items-center gap-1 text-xs font-medium text-indigo-600"><?= icon('plus', 'h-3.5 w-3.5') ?> Add task</a></div>
+            <ul class="divide-y divide-slate-100">
+                <?php foreach ($customerTasks as $t): ?>
+                    <li class="px-5 py-3">
+                        <div class="flex items-start justify-between gap-2">
+                            <a href="<?= e(url('tasks/view.php', ['id' => $t['id']])) ?>" class="min-w-0 truncate text-sm font-medium <?= $t['status'] === 'done' ? 'text-slate-400 line-through' : 'text-slate-800' ?> hover:text-indigo-600"><?= e($t['title']) ?></a>
+                            <?= task_status_badge($t['status']) ?>
+                        </div>
+                        <div class="mt-1 flex items-center justify-between gap-2 text-xs text-slate-500"><span class="truncate"><?= e($t['assignee_name'] ?: 'Unassigned') ?></span><?= task_due_label($t) ?></div>
+                    </li>
+                <?php endforeach; ?>
+                <?php if (!$customerTasks): ?><li class="px-5 py-6 text-center text-sm text-slate-400">No tasks for this customer.</li><?php endif; ?>
+            </ul>
         </div>
         <div class="card">
             <div class="card-header"><h2 class="card-title">Engagement</h2></div>

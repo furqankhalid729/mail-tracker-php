@@ -4,6 +4,7 @@ $nav = [
     ['customers', 'Customers', 'customers/index.php', 'users'],
     ['campaigns', 'Campaigns', 'campaigns/index.php', 'megaphone'],
     ['inbox', 'Inbox', 'inbox/index.php', 'inbox'],
+    ['tasks', 'Tasks', 'tasks/index.php', 'tasks'],
     ['activity', 'Activity', 'activity/index.php', 'activity'],
     ['templates', 'Templates', 'templates/index.php', 'template'],
     ['mail-accounts', 'Mail Accounts', 'mail-accounts/index.php', 'at'],
@@ -11,9 +12,10 @@ $nav = [
     ['settings', 'Settings', 'settings/index.php', 'cog'],
 ];
 $unread = (int) q_val('SELECT COUNT(*) FROM email_threads WHERE workspace_id = ? AND is_unread = 1', [ws_id()]);
+$myOpenTaskCount = my_open_task_count();
 $myWorkspaces = q_all('SELECT w.id, w.name FROM workspaces w JOIN workspace_members m ON m.workspace_id = w.id WHERE m.user_id = ? ORDER BY w.name', [user_id()]);
 
-$renderNav = function () use ($nav, $active_nav, $unread, $myWorkspaces, $workspace) { ?>
+$renderNav = function () use ($nav, $active_nav, $unread, $myOpenTaskCount, $myWorkspaces, $workspace) { ?>
     <div class="flex h-14 shrink-0 items-center gap-2.5 border-b border-slate-200 px-5">
         <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-sm"><?= icon('mail', 'h-4.5 w-4.5 h-[18px] w-[18px]') ?></span>
         <span class="text-[15px] font-semibold tracking-tight text-slate-900"><?= e(APP_NAME) ?></span>
@@ -41,6 +43,8 @@ $renderNav = function () use ($nav, $active_nav, $unread, $myWorkspaces, $worksp
                 <span class="flex-1"><?= e($label) ?></span>
                 <?php if ($key === 'inbox' && $unread > 0): ?>
                     <span class="rounded-full bg-indigo-600 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-white"><?= $unread > 99 ? '99+' : $unread ?></span>
+                <?php elseif ($key === 'tasks' && $myOpenTaskCount > 0): ?>
+                    <span class="rounded-full bg-slate-200 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-slate-700"><?= $myOpenTaskCount > 99 ? '99+' : $myOpenTaskCount ?></span>
                 <?php endif; ?>
             </a>
         <?php endforeach; ?>

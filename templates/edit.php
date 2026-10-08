@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/init.php';
 require_auth();
+require_permission('templates.manage');
 $ws = ws_id();
 $template = find_or_404('email_templates', input_int('id'));
 

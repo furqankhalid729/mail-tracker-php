@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/init.php';
 require_auth();
-require_role('admin');
+require_permission('mail_accounts.manage');
 require_post();
 
 $account = find_or_404('mail_accounts', input_int('id'));

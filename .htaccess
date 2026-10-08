@@ -18,7 +18,7 @@ ServerSignature Off
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 
     # Never serve internal directories
-    RewriteRule ^(config|includes|vendor|storage|uploads|scripts|deploy|node_modules)(/|$) - [F,L]
+    RewriteRule ^(config|includes|vendor|storage|uploads|scripts|deploy|migrations|node_modules)(/|$) - [F,L]
 
     # Partials (_form.php, _save.php, _bootstrap.php) are include-only
     RewriteRule (^|/)_[^/]*\.php$ - [F,L]

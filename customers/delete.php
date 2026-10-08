@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/init.php';
 require_auth();
+require_permission('customers.delete');
 require_post();
 
 $customer = find_or_404('customers', input_int('id'));

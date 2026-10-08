@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/init.php';
 require_auth();
+require_permission('customers.export');
 $ws = ws_id();
 
 // Source: bulk selection (stored in session by bulk.php) or the current list filters (GET)

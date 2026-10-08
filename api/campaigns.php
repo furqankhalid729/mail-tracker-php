@@ -12,6 +12,7 @@ $ws = ws_id();
 
 if (is_post()) {
     verify_csrf();
+    require_permission('campaigns.manage');
     $body = json_decode((string) file_get_contents('php://input'), true) ?: $_POST;
     if (($body['action'] ?? '') !== 'add_contacts') {
         json_response(['ok' => false, 'error' => 'Unknown action.'], 400);

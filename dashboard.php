@@ -64,6 +64,11 @@ $hasTemplate = (bool) q_val('SELECT id FROM email_templates WHERE workspace_id =
 $hasCampaign = (bool) q_val('SELECT id FROM campaigns WHERE workspace_id = ? LIMIT 1', [$ws]);
 $sentToday = sent_today_for_workspace($ws);
 $workspace = current_workspace();
+$myTasks = q_all(
+    "SELECT t.* FROM tasks t WHERE t.workspace_id = ? AND t.assigned_to = ? AND t.status IN (" . placeholders(TASK_OPEN_STATUSES) . ")
+     ORDER BY t.due_date IS NULL, t.due_date, FIELD(t.priority, 'urgent', 'high', 'medium', 'low') LIMIT 6",
+    [$ws, user_id(), ...TASK_OPEN_STATUSES]
+);
 
 $page_title = 'Dashboard';
 $active_nav = 'dashboard';
@@ -133,6 +138,19 @@ require __DIR__ . '/includes/header.php';
             <?php if (!$recent): ?><li class="px-5 py-10 text-center text-sm text-slate-400">No activity yet.</li><?php endif; ?>
         </ul>
     </div>
+</div>
+
+<div class="card mt-6 overflow-hidden">
+    <div class="card-header"><h2 class="card-title">My tasks</h2><a href="<?= e(url('tasks/index.php')) ?>" class="text-xs font-medium text-indigo-600">All tasks</a></div>
+    <ul class="divide-y divide-slate-100">
+        <?php foreach ($myTasks as $t): ?>
+            <li class="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-center sm:gap-4">
+                <a href="<?= e(url('tasks/view.php', ['id' => $t['id']])) ?>" class="min-w-0 flex-1 truncate text-sm font-medium text-slate-800 hover:text-indigo-600"><?= e($t['title']) ?></a>
+                <div class="flex items-center gap-3"><?= task_priority_badge($t['priority']) ?><?= task_status_badge($t['status']) ?><?= task_progress_bar((int) $t['progress'], 'w-20') ?><span class="w-36 text-right text-xs"><?= task_due_label($t) ?></span></div>
+            </li>
+        <?php endforeach; ?>
+        <?php if (!$myTasks): ?><li class="px-5 py-8 text-center text-sm text-slate-400">Nothing assigned to you. <a class="text-indigo-600" href="<?= e(url('tasks/create.php')) ?>">Create a task</a></li><?php endif; ?>
+    </ul>
 </div>
 
 <div class="card mt-6 overflow-hidden">

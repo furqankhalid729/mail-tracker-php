@@ -10,6 +10,7 @@ $filters = json_decode((string) ($_POST['filters'] ?? '{}'), true) ?: [];
 $filters = array_intersect_key($filters, array_flip(CUSTOMER_FILTER_KEYS));
 
 if ($action === 'export') {
+    require_permission('customers.export');
     $_SESSION['_export'] = $allMatching ? ['filters' => $filters] : ['ids' => input_ids('ids')];
     redirect('customers/export.php?from=bulk');
 }
@@ -25,8 +26,9 @@ if ($error = validate_bulk_payload($ws, $action, $payload)) {
     flash('error', $error);
     redirect_back('customers/index.php');
 }
-if ($action === 'delete' && !can('admin')) {
-    flash('error', 'Only workspace admins can bulk delete customers.');
+$required = ['delete' => 'customers.delete', 'add_to_campaign' => 'campaigns.manage'][$action] ?? null;
+if ($required && !allowed($required)) {
+    flash('error', 'Your role (' . role_label(user_role()) . ') cannot do that.');
     redirect_back('customers/index.php');
 }
 

@@ -2,6 +2,7 @@
 /** Campaign audience: add by tags/filters, pick individuals, remove contacts. */
 require_once __DIR__ . '/../includes/init.php';
 require_auth();
+require_permission('campaigns.manage');
 $ws = ws_id();
 $campaign = find_or_404('campaigns', input_int('id'));
 $cid = (int) $campaign['id'];

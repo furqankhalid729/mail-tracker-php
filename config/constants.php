@@ -57,3 +57,8 @@ const ALLOWED_ATTACHMENT_TYPES = [
     'webp' => ['image/webp'],
     'zip' => ['application/zip', 'application/x-zip-compressed'],
 ];
+
+const TASK_STATUSES = ['backlog' => 'Backlog', 'todo' => 'To do', 'in_progress' => 'In progress', 'review' => 'In review', 'done' => 'Done', 'cancelled' => 'Cancelled'];
+// Backlog is parked work: not counted as open, never overdue, hidden from "My tasks" counts until moved to To do
+const TASK_OPEN_STATUSES = ['todo', 'in_progress', 'review'];
+const TASK_PRIORITIES = ['low' => 'Low', 'medium' => 'Medium', 'high' => 'High', 'urgent' => 'Urgent'];
