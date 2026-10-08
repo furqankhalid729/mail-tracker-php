@@ -97,6 +97,12 @@ $connected = $conn && $conn['status'] !== 'disconnected' && $conn['encrypted_ref
 $callCount = (int) q_val('SELECT COUNT(*) FROM zoom_calls WHERE workspace_id = ?', [$ws]);
 $unassigned = (int) q_val('SELECT COUNT(*) FROM zoom_calls WHERE workspace_id = ? AND closer_user_id IS NULL', [$ws]);
 $range = q_one('SELECT MIN(start_time) first_call, MAX(start_time) last_call FROM zoom_calls WHERE workspace_id = ?', [$ws]);
+$hangup = q_one(
+    "SELECT (SELECT MAX(received_at) FROM zoom_call_events WHERE workspace_id = ?) last_event,
+            (SELECT COUNT(*) FROM zoom_calls WHERE workspace_id = ? AND direction = 'outbound' AND start_time >= ?) outbound_30d,
+            (SELECT COUNT(*) FROM zoom_calls WHERE workspace_id = ? AND direction = 'outbound' AND start_time >= ? AND ended_by <> 'unknown') known_30d",
+    [$ws, $ws, date('Y-m-d H:i:s', strtotime('-30 days')), $ws, date('Y-m-d H:i:s', strtotime('-30 days'))]
+);
 
 $page_title = 'Zoom Phone';
 $active_nav = 'calls';
@@ -143,6 +149,20 @@ require __DIR__ . '/../includes/header.php';
                 </div>
             </div>
         </div>
+
+        <div class="card">
+            <div class="card-header">
+                <div><h2 class="card-title">Who ended the call</h2><p class="text-xs text-slate-500">Optional. Uses Zoom Phone webhooks; outbound calls only.</p></div>
+                <?php if (ZOOM_WEBHOOK_SECRET === ''): ?><span class="badge badge-slate">Not set up</span><?php elseif ($hangup['last_event']): ?><span class="badge badge-green">Receiving</span><?php else: ?><span class="badge badge-amber">Waiting for events</span><?php endif; ?>
+            </div>
+            <div class="card-body space-y-3 text-sm text-slate-600">
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <div class="rounded-lg bg-slate-50 p-3"><div class="text-xs text-slate-500">Last webhook event</div><div class="font-medium"><?= e($hangup['last_event'] ? time_ago($hangup['last_event']) : 'never') ?></div></div>
+                    <div class="rounded-lg bg-slate-50 p-3"><div class="text-xs text-slate-500">Outbound calls with a known ender (30 days)</div><div class="font-medium"><?= number_format((int) $hangup['known_30d']) ?> of <?= number_format((int) $hangup['outbound_30d']) ?></div></div>
+                </div>
+                <p><b>Agent</b> = Zoom reported that your closer ended the call. <b>Other party</b> = the call connected, Zoom confirmed it finished, and no "closer ended" event arrived within <?= ZOOM_HANGUP_GRACE_MINUTES ?> minutes (Zoom does not send one when an outside number hangs up). Everything else stays <b>Unknown</b>: inbound calls, unanswered calls, transfers, and calls from before webhooks were set up.</p>
+            </div>
+        </div>
     </div>
 
     <div class="card h-fit">
@@ -154,6 +174,7 @@ require __DIR__ . '/../includes/header.php';
             <li>Copy the Client ID and Client Secret into <code>.env</code> as <code>ZOOM_CLIENT_ID</code> / <code>ZOOM_CLIENT_SECRET</code>.</li>
             <li>Click <b>Connect Zoom</b> and approve as a Zoom account admin with Zoom Phone.</li>
             <li>Add the cron job <code class="break-all text-xs">*/15 * * * * php <?= e(APP_ROOT) ?>/cron/sync-zoom-calls.php</code></li>
+            <li><b>Optional, who ended the call:</b> in the same app open <b>Features → Access → Event Subscriptions</b>, add a subscription with the endpoint URL<code class="mt-1 block break-all rounded bg-slate-100 px-2 py-1 text-xs"><?= e(url('webhooks/zoom.php')) ?></code>and the Phone events <b>Caller ended the call</b> (<code class="text-xs">phone.caller_ended</code>) and <b>Caller call history completed</b> (<code class="text-xs">phone.caller_call_history_completed</code>). Copy the app's <b>Secret Token</b> into <code>.env</code> as <code>ZOOM_WEBHOOK_SECRET</code> <i>before</i> clicking <b>Validate</b>. Add any scopes Zoom asks for when you add the events.</li>
         </ol>
     </div>
 </div>

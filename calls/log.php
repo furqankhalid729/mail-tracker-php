@@ -20,13 +20,13 @@ if (input('export') === 'csv') {
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="calls-' . $f['from'] . '-to-' . $f['to'] . '.csv"');
     $out = fopen('php://output', 'w');
-    fputcsv($out, ['Start', 'Answered', 'End', 'Direction', 'Closer', 'Closer number', 'From name', 'From number', 'To name', 'To number', 'Customer', 'Result', 'Connected', 'Duration (s)', 'Duration'], ',', '"', '');
+    fputcsv($out, ['Start', 'Answered', 'End', 'Direction', 'Closer', 'Closer number', 'From name', 'From number', 'To name', 'To number', 'Customer', 'Result', 'Connected', 'Ended by', 'Duration (s)', 'Duration'], ',', '"', '');
     $stmt = q("$select ORDER BY $order", $params);
     while ($c = $stmt->fetch()) {
         fputcsv($out, [
             $c['start_time'], $c['answer_time'], $c['end_time'], $c['direction'], $c['closer_name'], $c['closer_number_key'],
             $c['caller_name'], $c['caller_number'] ?: $c['caller_ext'], $c['callee_name'], $c['callee_number'] ?: $c['callee_ext'],
-            $customerLabel($c), $c['call_result'], $c['is_connected'] ? 'yes' : 'no', $c['duration'], format_duration((int) $c['duration']),
+            $customerLabel($c), $c['call_result'], $c['is_connected'] ? 'yes' : 'no', $c['direction'] === 'outbound' ? $c['ended_by'] : '', $c['duration'], format_duration((int) $c['duration']),
         ], ',', '"', '');
     }
     exit;
@@ -77,6 +77,7 @@ require __DIR__ . '/../includes/header.php';
                 <th>Other party</th>
                 <th>Closer line</th>
                 <th>Result</th>
+                <th>Ended by</th>
                 <th class="text-right"><?= sort_link('duration', 'Duration') ?></th>
             </tr></thead>
             <tbody>
@@ -100,6 +101,7 @@ require __DIR__ . '/../includes/header.php';
                     </td>
                     <td class="whitespace-nowrap text-xs tabular-nums text-slate-500"><?= e($closerLine ?: '—') ?></td>
                     <td><?= call_result_badge($c['call_result'], (bool) $c['is_connected']) ?></td>
+                    <td><?= call_ended_by_badge($c) ?></td>
                     <td class="whitespace-nowrap text-right tabular-nums <?= $c['is_connected'] ? 'font-medium text-slate-900' : 'text-slate-400' ?>"><?= e(format_duration((int) $c['duration'])) ?></td>
                 </tr>
             <?php endforeach; ?>

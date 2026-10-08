@@ -70,7 +70,7 @@ A lightweight email CRM and campaign manager that runs on ordinary shared hostin
 - `ALLOW_REGISTRATION=false` once your team has accounts. Add teammates in *Settings → Members*.
 
 ### Upgrading an existing install
-Import the files in `migrations/` once each, in order (phpMyAdmin → *Import*): `001_roles_and_tasks.sql`, then `002_closers_and_zoom.sql`, then `003_call_leads.sql`. Each is safe to run again. Fresh installs get these from `database.sql`.
+Import the files in `migrations/` once each, in order (phpMyAdmin → *Import*): `001_roles_and_tasks.sql`, then `002_closers_and_zoom.sql`, then `003_call_leads.sql`, then `004_zoom_hangup.sql`. Each is safe to run again. Fresh installs get these from `database.sql`.
 
 ---
 
@@ -118,6 +118,19 @@ cron every minute → atomically claim ≤ N jobs → check: unsubscribed? bounc
 6. In **Calls → Closer numbers**, assign each closer their Zoom Phone numbers or extensions. You can type them in or upload a CSV with `email,phone_number,label`. Numbers match in any format, using the last 10 digits.
 
 A call belongs to a closer when the caller or callee number matches one of their assigned numbers. Changing assignments re-attributes past calls too. A call counts as *connected* when Zoom reports it as answered. Talk time is the sum of connected-call durations. Data comes from the account-level `GET /phone/call_history` API.
+
+**Who ended the call (optional, outbound calls).** Zoom's call history has no "hung up by" field. The only signal is the `phone.caller_ended` webhook, which Zoom sends when a Zoom Phone user on your account ends a call. It isn't sent when an outside number hangs up. To turn it on:
+1. In the same Zoom app, open **Features → Access → Event Subscriptions** and add an event subscription.
+2. Set the endpoint URL to `https://yourdomain.com/webhooks/zoom.php`.
+3. Add the Phone events `phone.caller_ended` and `phone.caller_call_history_completed`, plus any scopes Zoom asks for when you add them.
+4. Put the app's **Secret Token** in `.env` as `ZOOM_WEBHOOK_SECRET`, then click **Validate**.
+
+Every request is checked against the `x-zm-signature` HMAC. Each outbound call is then labelled in the call log and on lead pages:
+- **Agent:** exactly one `caller_ended` was received for the call.
+- **Other party:** the call connected, Zoom confirmed it completed, and no `caller_ended` arrived within 90 minutes, which is longer than Zoom's retry window.
+- **Unknown:** everything else. That covers inbound calls, unanswered calls nobody cancelled, transfers (several `caller_ended` events), and calls from before the webhook was set up.
+
+**Calls → Zoom** shows whether events are arriving.
 
 ## Call leads
 Lists of businesses for closers to phone, such as Google Maps exports or Website / Email / Phones sheets.

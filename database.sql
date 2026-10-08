@@ -553,6 +553,7 @@ CREATE TABLE IF NOT EXISTS zoom_calls (
     call_type VARCHAR(30) NULL,
     call_result VARCHAR(40) NULL,
     is_connected TINYINT(1) NOT NULL DEFAULT 0,
+    ended_by ENUM('agent','external','unknown') NOT NULL DEFAULT 'unknown',
     caller_name VARCHAR(190) NULL,
     caller_number VARCHAR(40) NULL,
     caller_ext VARCHAR(20) NULL,
@@ -580,10 +581,26 @@ CREATE TABLE IF NOT EXISTS zoom_calls (
     KEY idx_zc_callee (workspace_id, callee_key),
     KEY idx_zc_customer (customer_id),
     KEY idx_zc_lead (lead_id, start_time),
+    KEY idx_zc_call_id (workspace_id, call_id),
     CONSTRAINT fk_zc_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
     CONSTRAINT fk_zc_closer FOREIGN KEY (closer_user_id) REFERENCES users(id) ON DELETE SET NULL,
     CONSTRAINT fk_zc_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL,
     CONSTRAINT fk_zc_lead FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Raw Zoom Phone webhook events we use (phone.caller_ended and the call-completed events), one row per call
+-- and event; Zoom retries carry the same event_ts, so the unique key makes delivery idempotent.
+CREATE TABLE IF NOT EXISTS zoom_call_events (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    workspace_id INT UNSIGNED NOT NULL,
+    call_id VARCHAR(64) NOT NULL,
+    event VARCHAR(60) NOT NULL,
+    event_ts BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    payload JSON NULL,
+    received_at DATETIME NOT NULL,
+    UNIQUE KEY uq_zce (workspace_id, call_id, event, event_ts),
+    KEY idx_zce_received (workspace_id, received_at),
+    CONSTRAINT fk_zce_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS password_resets (

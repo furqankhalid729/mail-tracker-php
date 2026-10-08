@@ -115,7 +115,7 @@ require __DIR__ . '/../includes/header.php';
             <div class="card-header"><h2 class="card-title">Zoom calls</h2><span class="text-xs text-slate-500">Matched by phone number</span></div>
             <div class="overflow-x-auto">
                 <table class="table">
-                    <thead><tr><th>When</th><th>Direction</th><th>Number</th><th>Closer</th><th>Result</th><th class="text-right">Duration</th></tr></thead>
+                    <thead><tr><th>When</th><th>Direction</th><th>Number</th><th>Closer</th><th>Result</th><th>Ended by</th><th class="text-right">Duration</th></tr></thead>
                     <tbody>
                     <?php foreach ($calls as $c): ?>
                         <tr>
@@ -124,10 +124,11 @@ require __DIR__ . '/../includes/header.php';
                             <td class="whitespace-nowrap text-xs tabular-nums"><?= e($c['external_number'] ?: '—') ?></td>
                             <td class="whitespace-nowrap text-xs"><?= $c['closer_name'] ? e($c['closer_name']) : '<span class="text-slate-400">—</span>' ?></td>
                             <td><?= call_result_badge($c['call_result'], (bool) $c['is_connected']) ?></td>
+                            <td><?= call_ended_by_badge($c) ?></td>
                             <td class="text-right text-xs tabular-nums"><?= e(format_duration((int) $c['duration'])) ?></td>
                         </tr>
                     <?php endforeach; ?>
-                    <?php if (!$calls): ?><tr><td colspan="6" class="py-8 text-center text-sm text-slate-400">No Zoom calls to these numbers yet. Calls appear after the next Zoom sync.</td></tr><?php endif; ?>
+                    <?php if (!$calls): ?><tr><td colspan="7" class="py-8 text-center text-sm text-slate-400">No Zoom calls to these numbers yet. Calls appear after the next Zoom sync.</td></tr><?php endif; ?>
                     </tbody>
                 </table>
             </div>

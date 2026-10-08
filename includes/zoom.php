@@ -267,6 +267,7 @@ function zoom_sync(int $wsId, int $budget = 40): array
 
         zoom_reattribute($wsId);
         leads_link_calls($wsId);
+        zoom_resolve_hangups($wsId); // webhooks often arrive before the call shows up in call history
         q("UPDATE zoom_connections SET status = 'active', last_error = NULL, last_sync_at = ?, updated_at = ? WHERE id = ?", [now(), now(), $conn['id']]);
         return $stats;
     } catch (Throwable $e) {
@@ -275,6 +276,116 @@ function zoom_sync(int $wsId, int $budget = 40): array
     } finally {
         q('SELECT RELEASE_LOCK(?)', [$lock]);
     }
+}
+
+/* ---------------------------------------------------------------------------
+ * Who ended the call (webhooks)
+ *
+ * Zoom's call history API has no "hung up by" field. The only signal is the phone.caller_ended webhook,
+ * which Zoom sends when a Zoom Phone user on the account (our agent, the caller on an outbound call)
+ * ends the call; it is not sent for external parties. So for outbound calls:
+ *   agent     exactly one phone.caller_ended for the call
+ *   external  connected, Zoom confirmed the call completed (phone.caller_call_history_completed /
+ *             phone.caller_call_log_completed), and no phone.caller_ended arrived within
+ *             ZOOM_HANGUP_GRACE_MINUTES (longer than Zoom's ~85 min retry window)
+ *   unknown   everything else: inbound calls, unanswered calls nobody cancelled, transfers (several
+ *             caller_ended events), calls from before webhooks were set up, missing events
+ * ------------------------------------------------------------------------- */
+
+const ZOOM_HANGUP_EVENTS = ['phone.caller_ended', 'phone.caller_call_history_completed', 'phone.caller_call_log_completed'];
+const ZOOM_HANGUP_GRACE_MINUTES = 90;
+
+/** x-zm-signature = "v0=" . HMAC-SHA256(secret, "v0:{timestamp}:{raw body}"); timestamps older than 5 minutes are rejected. */
+function zoom_webhook_signature_ok(string $body, string $timestamp, string $signature): bool
+{
+    if (ZOOM_WEBHOOK_SECRET === '' || !ctype_digit($timestamp) || abs(time() - (int) $timestamp) > 300) {
+        return false;
+    }
+    $expected = 'v0=' . hash_hmac('sha256', "v0:$timestamp:$body", ZOOM_WEBHOOK_SECRET);
+    return hash_equals($expected, $signature);
+}
+
+/**
+ * Store a Zoom Phone webhook event for every workspace connected to its Zoom account.
+ * Returns [workspace_id => [call_id, …]] of what was recorded (empty for events we don't use).
+ */
+function zoom_record_call_event(array $event): array
+{
+    $name = (string) ($event['event'] ?? '');
+    $object = $event['payload']['object'] ?? null;
+    $accountId = (string) ($event['payload']['account_id'] ?? '');
+    if (!in_array($name, ZOOM_HANGUP_EVENTS, true) || !is_array($object) || $accountId === '') {
+        return [];
+    }
+    // caller_ended carries one call; the completed events carry a list of call logs
+    $callIds = $name === 'phone.caller_ended'
+        ? [(string) ($object['call_id'] ?? '')]
+        : array_map(fn($l) => (string) ($l['call_id'] ?? ''), is_array($object['call_logs'] ?? null) ? $object['call_logs'] : []);
+    $callIds = array_values(array_unique(array_filter($callIds, fn($id) => $id !== '' && strlen($id) <= 64)));
+    $workspaces = array_map('intval', q_col("SELECT workspace_id FROM zoom_connections WHERE zoom_account_id = ? AND status <> 'disconnected'", [$accountId]));
+    if (!$workspaces) {
+        // The account id is only saved at connect time when the app has user:read:user:admin. If exactly one
+        // connection lacks it and no other has an account id, adopt it from this (signature-verified) event.
+        $unknown = q_col("SELECT workspace_id FROM zoom_connections WHERE zoom_account_id IS NULL AND status <> 'disconnected'");
+        if (count($unknown) === 1 && !q_val('SELECT 1 FROM zoom_connections WHERE zoom_account_id IS NOT NULL LIMIT 1')) {
+            q('UPDATE zoom_connections SET zoom_account_id = ?, updated_at = ? WHERE workspace_id = ?', [mb_substr($accountId, 0, 64), now(), $unknown[0]]);
+            $workspaces = [(int) $unknown[0]];
+        }
+    }
+    if (!$callIds || !$workspaces) {
+        return [];
+    }
+    $ts = (int) ($event['event_ts'] ?? 0);
+    $json = json_encode($object, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $out = [];
+    foreach ($workspaces as $wsId) {
+        foreach ($callIds as $callId) {
+            q(
+                'INSERT IGNORE INTO zoom_call_events (workspace_id, call_id, event, event_ts, payload, received_at) VALUES (?, ?, ?, ?, ?, ?)',
+                [$wsId, $callId, $name, $ts, strlen($json) <= 60000 ? $json : null, now()]
+            );
+        }
+        $out[$wsId] = $callIds;
+    }
+    return $out;
+}
+
+/** Recompute ended_by for outbound calls of a workspace (optionally only these Zoom call ids). */
+function zoom_resolve_hangups(int $wsId, ?array $callIds = null): void
+{
+    if ($callIds === []) {
+        return;
+    }
+    $only = $callIds ? ' AND c.call_id IN (' . placeholders($callIds) . ')' : '';
+    $ids = $callIds ?: [];
+    $endedCount = "(SELECT COUNT(*) FROM zoom_call_events e WHERE e.workspace_id = c.workspace_id AND e.call_id = c.call_id AND e.event = 'phone.caller_ended')";
+    // agent: our caller ended it, exactly once (several = a transfer or multiple legs, not reliable)
+    q(
+        "UPDATE zoom_calls c SET c.ended_by = IF($endedCount = 1, 'agent', 'unknown')
+         WHERE c.workspace_id = ? AND c.direction = 'outbound' AND c.call_id IS NOT NULL AND $endedCount > 0$only",
+        [$wsId, ...$ids]
+    );
+    // external: connected, completion confirmed long enough ago that a caller_ended (incl. Zoom retries) would have arrived
+    q(
+        "UPDATE zoom_calls c SET c.ended_by = 'external'
+         WHERE c.workspace_id = ? AND c.direction = 'outbound' AND c.call_id IS NOT NULL AND c.ended_by = 'unknown' AND c.is_connected = 1
+           AND $endedCount = 0
+           AND EXISTS (SELECT 1 FROM zoom_call_events e WHERE e.workspace_id = c.workspace_id AND e.call_id = c.call_id
+                       AND e.event IN ('phone.caller_call_history_completed', 'phone.caller_call_log_completed') AND e.received_at <= ?)$only",
+        [$wsId, date('Y-m-d H:i:s', time() - ZOOM_HANGUP_GRACE_MINUTES * 60), ...$ids]
+    );
+}
+
+function call_ended_by_badge(array $call): string
+{
+    if (($call['direction'] ?? '') !== 'outbound') {
+        return '<span class="text-xs text-slate-400">—</span>';
+    }
+    return match ($call['ended_by'] ?? 'unknown') {
+        'agent' => '<span class="badge badge-indigo !normal-case">Agent</span>',
+        'external' => '<span class="badge badge-amber !normal-case">Other party</span>',
+        default => '<span class="badge badge-slate !normal-case" title="Zoom did not report who ended this call">Unknown</span>',
+    };
 }
 
 /* ---------------------------------------------------------------------------
