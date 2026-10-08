@@ -18,7 +18,14 @@ $self = 'calls/numbers.php';
 $assign = function (int $userId, array $lines) use ($ws): array {
     $added = 0;
     $skipped = [];
+    // "(559) 451-0800; (559) 451-0808" in one cell = two numbers with the same label
+    $expanded = [];
     foreach ($lines as [$number, $label]) {
+        foreach (preg_split('/[;|]+/', (string) $number) as $part) {
+            $expanded[] = [$part, $label];
+        }
+    }
+    foreach ($expanded as [$number, $label]) {
         $number = trim((string) $number);
         $key = number_key($number);
         if ($number === '' || !$key || strlen($key) < 3) {
@@ -255,7 +262,7 @@ require __DIR__ . '/../includes/header.php';
                 <div>
                     <label class="label" for="numbers">Numbers</label>
                     <textarea class="input font-mono" id="numbers" name="numbers" rows="5" required placeholder="+1 408 533 3518, Main line&#10;+1 408 533 3519&#10;1107"></textarea>
-                    <p class="help">One per line, optionally followed by “, label”. Full numbers in any format, or a Zoom extension.</p>
+                    <p class="help">One per line, optionally followed by “, label”. Several numbers on one line can be separated with ; . Full numbers in any format, or a Zoom extension.</p>
                 </div>
                 <button class="btn-primary w-full"><?= icon('plus', 'h-4 w-4') ?> Assign</button>
             </div>
