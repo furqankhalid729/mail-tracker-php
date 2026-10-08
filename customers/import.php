@@ -19,27 +19,10 @@ function import_path(array $state): string
     return UPLOAD_PATH . '/' . $state['file'];
 }
 
-function import_to_utf8(array $row): array
-{
-    return array_map(fn($v) => mb_check_encoding((string) $v, 'UTF-8') ? trim((string) $v) : trim(mb_convert_encoding((string) $v, 'UTF-8', 'Windows-1252')), $row);
-}
-
 /** Read up to $limit rows starting at byte $offset. Returns [rows, nextOffset, eof]. */
 function import_read_batch(array $state, int $offset, int $limit): array
 {
-    $fh = fopen(import_path($state), 'r');
-    fseek($fh, $offset);
-    $rows = [];
-    while (count($rows) < $limit && ($row = fgetcsv($fh, 0, $state['delimiter'], '"', '\\')) !== false) {
-        if ($row === [null] || (count($row) === 1 && trim((string) $row[0]) === '')) {
-            continue; // blank line
-        }
-        $rows[] = import_to_utf8($row);
-    }
-    $next = ftell($fh);
-    $eof = feof($fh);
-    fclose($fh);
-    return [$rows, $next, $eof];
+    return csv_read_batch(import_path($state), $state['delimiter'], $offset, $limit);
 }
 
 /** Map a CSV row to [customerData, customFields]. */
@@ -181,49 +164,15 @@ if (is_post() && in_array(input('action'), ['scan', 'process'], true)) {
  * ------------------------------------------------------------------------- */
 if (is_post() && input('action') === 'upload') {
     verify_csrf();
-    $f = $_FILES['csv'] ?? null;
-    $ext = strtolower(pathinfo((string) ($f['name'] ?? ''), PATHINFO_EXTENSION));
-    $mime = $f && $f['error'] === UPLOAD_ERR_OK ? (new finfo(FILEINFO_MIME_TYPE))->file($f['tmp_name']) : '';
-    if (!$f || $f['error'] !== UPLOAD_ERR_OK) {
-        flash('error', 'Upload failed. Check the file size (max ' . UPLOAD_LIMIT_MB . ' MB unless your host allows more).');
-    } elseif (!in_array($ext, ['csv', 'txt'], true) || !in_array($mime, ['text/csv', 'text/plain', 'application/csv', 'application/vnd.ms-excel', 'text/x-csv'], true)) {
-        flash('error', 'Please upload a .csv file.');
+    if ($state && is_file(import_path($state))) {
+        @unlink(import_path($state));
+    }
+    $upload = csv_store_upload($_FILES['csv'] ?? null, $ws);
+    if (isset($upload['error'])) {
+        flash('error', $upload['error']);
     } else {
-        if ($state && is_file(import_path($state))) {
-            @unlink(import_path($state));
-        }
-        $rel = 'imports/' . $ws . '/' . random_token(16) . '.csv';
-        upload_dir('imports/' . $ws);
-        move_uploaded_file($f['tmp_name'], UPLOAD_PATH . '/' . $rel);
-
-        $fh = fopen(UPLOAD_PATH . '/' . $rel, 'r');
-        $first = (string) fgets($fh);
-        $first = preg_replace('/^\xEF\xBB\xBF/', '', $first);
-        $counts = [',' => substr_count($first, ','), ';' => substr_count($first, ';'), "\t" => substr_count($first, "\t")];
-        arsort($counts);
-        $delimiter = (string) array_key_first($counts);
-        rewind($fh);
-        if (fread($fh, 3) !== "\xEF\xBB\xBF") {
-            rewind($fh);
-        }
-        $headers = import_to_utf8(fgetcsv($fh, 0, $delimiter, '"', '\\') ?: []);
-        $dataOffset = ftell($fh);
-        fclose($fh);
-
-        if (count($headers) < 1 || implode('', $headers) === '') {
-            flash('error', 'Could not read a header row from that file.');
-        } else {
-            $_SESSION['import'] = [
-                'ws' => $ws,
-                'file' => $rel,
-                'name' => basename((string) $f['name']),
-                'size' => filesize(UPLOAD_PATH . '/' . $rel),
-                'delimiter' => $delimiter,
-                'headers' => $headers,
-                'data_offset' => $dataOffset,
-            ];
-            redirect(url('customers/import.php', ['step' => 'map']));
-        }
+        $_SESSION['import'] = ['ws' => $ws] + $upload;
+        redirect(url('customers/import.php', ['step' => 'map']));
     }
     redirect('customers/import.php');
 }
@@ -386,7 +335,7 @@ $steps = ['upload' => 'Upload', 'map' => 'Map columns', 'validate' => 'Validate 
     </form>
 
 <?php else: ?>
-    <div class="card max-w-3xl p-6" x-data="importRunner(<?= !empty($state['finished']) ? 'true' : 'false' ?>, <?= json_encode($state['result'] ?? null) ?>)" x-init="init()">
+    <div class="card max-w-3xl p-6" x-data="importRunner(<?= !empty($state['finished']) ? 'true' : 'false' ?>, <?= e(json_encode($state['result'] ?? null)) ?>)" x-init="init()">
         <div class="flex items-center justify-between">
             <h2 class="card-title" x-text="phase === 'scan' ? 'Validating file…' : (phase === 'scanned' ? 'Validation complete' : (phase === 'import' ? 'Importing…' : 'Import complete'))"></h2>
             <span class="text-xs text-slate-500"><?= e($state['name']) ?> · duplicates: <b><?= e($state['duplicate']) ?></b></span>

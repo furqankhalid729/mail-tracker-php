@@ -5,7 +5,8 @@ declare(strict_types=1);
  * Zoom Phone call history over OAuth 2.0 (account-level app, plain cURL, no SDK).
  *   - An admin connects once; tokens are encrypted at rest and refreshed server-side.
  *   - Cron pulls GET /phone/call_history in date windows and upserts into zoom_calls.
- *   - Calls are attributed to closers by matching caller/callee numbers against closer_numbers.
+ *   - Calls are attributed to closers by matching caller/callee numbers against closer_numbers,
+ *     and linked to call leads by the external number (lead_phones), which refreshes attempts / last call.
  * Zoom rotates refresh tokens: every refresh returns a new one that must be stored before the next call,
  * so all token use for a workspace happens under one named lock (see zoom_sync()).
  */
@@ -265,6 +266,7 @@ function zoom_sync(int $wsId, int $budget = 40): array
         }
 
         zoom_reattribute($wsId);
+        leads_link_calls($wsId);
         q("UPDATE zoom_connections SET status = 'active', last_error = NULL, last_sync_at = ?, updated_at = ? WHERE id = ?", [now(), now(), $conn['id']]);
         return $stats;
     } catch (Throwable $e) {

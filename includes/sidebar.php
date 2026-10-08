@@ -5,6 +5,7 @@ $nav = [
     ['campaigns', 'Campaigns', 'campaigns/index.php', 'megaphone'],
     ['inbox', 'Inbox', 'inbox/index.php', 'inbox'],
     ['tasks', 'Tasks', 'tasks/index.php', 'tasks'],
+    ['leads', 'Leads', 'leads/index.php', 'phone-out'],
     ['calls', 'Calls', 'calls/index.php', 'phone'],
     ['activity', 'Activity', 'activity/index.php', 'activity'],
     ['templates', 'Templates', 'templates/index.php', 'template'],
@@ -15,9 +16,13 @@ $nav = [
 if (!can_see_calls()) {
     $nav = array_values(array_filter($nav, fn($item) => $item[0] !== 'calls'));
 }
+if (!can_see_leads()) {
+    $nav = array_values(array_filter($nav, fn($item) => $item[0] !== 'leads'));
+}
 if (is_closer()) {
-    $nav = array_values(array_filter($nav, fn($item) => in_array($item[0], ['calls', 'inbox', 'customers', 'settings'], true)));
-    usort($nav, fn($a, $b) => array_search($a[0], ['calls', 'inbox', 'customers', 'settings']) <=> array_search($b[0], ['calls', 'inbox', 'customers', 'settings']));
+    $closerNav = ['leads', 'calls', 'inbox', 'customers', 'settings'];
+    $nav = array_values(array_filter($nav, fn($item) => in_array($item[0], $closerNav, true)));
+    usort($nav, fn($a, $b) => array_search($a[0], $closerNav) <=> array_search($b[0], $closerNav));
 }
 $unread = (int) q_val('SELECT COUNT(*) FROM email_threads WHERE workspace_id = ? AND is_unread = 1', [ws_id()]);
 $myOpenTaskCount = my_open_task_count();

@@ -70,7 +70,7 @@ A lightweight email CRM and campaign manager that runs on ordinary shared hostin
 - `ALLOW_REGISTRATION=false` once your team has accounts. Add teammates in *Settings → Members*.
 
 ### Upgrading an existing install
-Import the files in `migrations/` once each, in order (phpMyAdmin → *Import*): `001_roles_and_tasks.sql`, then `002_closers_and_zoom.sql`. Each is safe to run again. Fresh installs get these from `database.sql`.
+Import the files in `migrations/` once each, in order (phpMyAdmin → *Import*): `001_roles_and_tasks.sql`, then `002_closers_and_zoom.sql`, then `003_call_leads.sql`. Each is safe to run again. Fresh installs get these from `database.sql`.
 
 ---
 
@@ -82,7 +82,7 @@ Import the files in `migrations/` once each, in order (phpMyAdmin → *Import*):
 | **Admin** | Members, settings and mail accounts. Cannot change or create Super Admins. |
 | **Manager** | Assigns tasks to anyone, sees all tasks and the team progress report, deletes and exports customers. |
 | **Email Marketer** | Campaigns and templates, customer import, works on their own tasks. |
-| **Closer** | Only the Inbox, viewing and emailing customers, and a Calls dashboard for their own assigned numbers. The pages are listed in `CLOSER_PAGES` in `includes/permissions.php`. |
+| **Closer** | Only their assigned Leads, the Inbox, viewing and emailing customers, and a Calls dashboard for their own assigned numbers. The pages are listed in `CLOSER_PAGES` in `includes/permissions.php`. |
 | **Member** | Customers, notes and inbox, views campaigns, works on their own tasks. |
 
 Each role also has everything the roles below it have. The rules live in one place, `PERMISSIONS` in `includes/permissions.php`. Change the minimum role there to adjust who can do what.
@@ -119,6 +119,13 @@ cron every minute → atomically claim ≤ N jobs → check: unsubscribed? bounc
 
 A call belongs to a closer when the caller or callee number matches one of their assigned numbers. Changing assignments re-attributes past calls too. A call counts as *connected* when Zoom reports it as answered. Talk time is the sum of connected-call durations. Data comes from the account-level `GET /phone/call_history` API.
 
+## Call leads
+Lists of businesses for closers to phone, such as Google Maps exports or Website / Email / Phones sheets.
+- **Import** (admins): *Leads → Import CSV*. Columns are matched automatically and you can change the mapping. Several columns can go to *Phone(s)* or *Email(s)*, and a cell can hold several values separated by `;`. Google redirect links (`google.com/url?q=…`) are unwrapped to the real website. Columns you don't map are kept as extra fields and can be filtered with *Other column contains*. You can assign the whole file to one person and give it a starting status. A row is skipped as a duplicate when one of its phone numbers already belongs to a lead.
+- **Assigning**: on import, in bulk from the list (*select → Assign to*, including "Select all matching"), or on the lead page. Closers see only their own leads. Managers and above see all leads.
+- **Statuses**: admins define them in *Leads → Statuses* (name, color, order). Each status is a filter chip with a count, and new leads get the first one. Closers change the status from the list or from the lead page, with an optional note. Every change goes into the lead's timeline.
+- **Attempts / last call** come from Zoom only. After every Zoom sync, calls are linked to a lead when the call's external number matches one of the lead's phones (last 10 digits). *Total attempts* counts outbound calls. *Connected* counts answered calls in either direction. *Last call* is the most recent call either way. Importing a lead also picks up Zoom calls that were already synced.
+
 ## Gmail / Google Workspace
 - **Simplest option.** Use SMTP with an [App Password](https://myaccount.google.com/apppasswords) (`smtp.gmail.com:587 STARTTLS`, IMAP `imap.gmail.com:993`).
 - **OAuth (optional).** Create an OAuth client of type *Web application* in Google Cloud Console. Add `https://yourdomain.com/mail-accounts/oauth.php` as the redirect URI, enable the Gmail API, and set `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`. Tokens are encrypted, refreshed server-side and never reach the browser. Replies are matched by Gmail thread ID and Message-ID headers.
@@ -136,7 +143,7 @@ The PHP built-in server ignores `.htaccess`, so test the access rules on Apache.
 
 ## Project layout
 ```
-customers/ campaigns/ tasks/ calls/ inbox/ activity/ templates/ mail-accounts/ tags/ settings/   pages (+ _form/_save partials)
+customers/ campaigns/ tasks/ calls/ leads/ inbox/ activity/ templates/ mail-accounts/ tags/ settings/   pages (+ _form/_save partials)
 api/            JSON endpoints (kanban, campaigns, customers, tags, activity, search)
 tracking/       open.php (pixel), click.php (signed redirect)
 unsubscribe/    public unsubscribe + one-click

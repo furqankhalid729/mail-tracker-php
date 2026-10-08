@@ -21,7 +21,7 @@ const ROLE_DESCRIPTIONS = [
     'admin' => 'Members, settings and mail accounts. Cannot change Super Admins.',
     'manager' => 'Assigns tasks to anyone, sees team progress, deletes and exports customers.',
     'marketer' => 'Runs campaigns and templates, imports customers, works on own tasks.',
-    'closer' => 'Only the inbox, emailing customers, and a Zoom calls dashboard for their own assigned numbers.',
+    'closer' => 'Only their assigned leads, the inbox, emailing customers, and a Zoom calls dashboard for their own numbers.',
     'member' => 'Works with customers and the inbox, views campaigns, works on own tasks.',
 ];
 
@@ -39,6 +39,8 @@ const PERMISSIONS = [
     'mail_accounts.manage' => 'admin',
     'calls.view_all' => 'admin',          // every closer's calls, combined and per-closer stats
     'calls.manage' => 'admin',            // connect Zoom, assign numbers to closers
+    'leads.view_all' => 'manager',        // see every lead, not only those assigned to you
+    'leads.manage' => 'admin',            // import, add, edit, assign and delete leads; define lead statuses
 ];
 
 /**
@@ -47,6 +49,7 @@ const PERMISSIONS = [
  */
 const CLOSER_PAGES = [
     'calls/index.php', 'calls/log.php',
+    'leads/index.php', 'leads/view.php', 'leads/actions.php',
     'inbox/',
     'customers/index.php', 'customers/view.php', 'customers/email.php', 'customers/actions.php',
     'api/customers.php', 'api/search.php', 'api/kanban.php', 'api/tags.php',
@@ -84,14 +87,14 @@ function enforce_closer_scope(): void
     $root = realpath(APP_ROOT) ?: APP_ROOT;
     $path = ltrim(str_replace('\\', '/', substr($script, strlen($root))), '/');
     if (in_array($path, ['dashboard.php', 'index.php'], true)) {
-        redirect('calls/index.php');
+        redirect('leads/index.php');
     }
     foreach (CLOSER_PAGES as $allowed) {
         if ($path === $allowed || (str_ends_with($allowed, '/') && str_starts_with($path, $allowed))) {
             return;
         }
     }
-    abort(403, 'Closers can use Calls, the Inbox and customer emails only.');
+    abort(403, 'Closers can use Leads, Calls, the Inbox and customer emails only.');
 }
 
 function can(string $minRole): bool
