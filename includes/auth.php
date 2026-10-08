@@ -97,6 +97,7 @@ function require_auth(): array
     if (!current_workspace()) {
         abort(403, 'Your account is not a member of any workspace.');
     }
+    enforce_closer_scope();
     return current_user();
 }
 

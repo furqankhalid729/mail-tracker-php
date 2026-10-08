@@ -37,7 +37,7 @@ $active_nav = $active_nav ?? '';
                 <kbd class="hidden rounded border border-slate-300 bg-white px-1.5 text-[11px] font-medium text-slate-500 sm:inline">Ctrl K</kbd>
             </button>
             <div class="ml-auto flex items-center gap-2">
-                <a href="<?= e(url('customers/create.php')) ?>" class="btn-secondary btn-sm hidden sm:inline-flex"><?= icon('plus', 'h-4 w-4') ?> Customer</a>
+                <?php if (!is_closer()): ?><a href="<?= e(url('customers/create.php')) ?>" class="btn-secondary btn-sm hidden sm:inline-flex"><?= icon('plus', 'h-4 w-4') ?> Customer</a><?php endif; ?>
                 <div class="relative" x-data="{ open: false }" @click.outside="open = false">
                     <button type="button" @click="open = !open" class="flex items-center gap-2 rounded-lg px-1.5 py-1 hover:bg-slate-100">
                         <span class="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold text-white"><?= e(initials($user['name'] ?? '')) ?></span>

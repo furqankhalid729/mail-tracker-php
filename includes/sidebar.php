@@ -5,12 +5,20 @@ $nav = [
     ['campaigns', 'Campaigns', 'campaigns/index.php', 'megaphone'],
     ['inbox', 'Inbox', 'inbox/index.php', 'inbox'],
     ['tasks', 'Tasks', 'tasks/index.php', 'tasks'],
+    ['calls', 'Calls', 'calls/index.php', 'phone'],
     ['activity', 'Activity', 'activity/index.php', 'activity'],
     ['templates', 'Templates', 'templates/index.php', 'template'],
     ['mail-accounts', 'Mail Accounts', 'mail-accounts/index.php', 'at'],
     ['tags', 'Tags', 'tags/index.php', 'tag'],
     ['settings', 'Settings', 'settings/index.php', 'cog'],
 ];
+if (!can_see_calls()) {
+    $nav = array_values(array_filter($nav, fn($item) => $item[0] !== 'calls'));
+}
+if (is_closer()) {
+    $nav = array_values(array_filter($nav, fn($item) => in_array($item[0], ['calls', 'inbox', 'customers', 'settings'], true)));
+    usort($nav, fn($a, $b) => array_search($a[0], ['calls', 'inbox', 'customers', 'settings']) <=> array_search($b[0], ['calls', 'inbox', 'customers', 'settings']));
+}
 $unread = (int) q_val('SELECT COUNT(*) FROM email_threads WHERE workspace_id = ? AND is_unread = 1', [ws_id()]);
 $myOpenTaskCount = my_open_task_count();
 $myWorkspaces = q_all('SELECT w.id, w.name FROM workspaces w JOIN workspace_members m ON m.workspace_id = w.id WHERE m.user_id = ? ORDER BY w.name', [user_id()]);

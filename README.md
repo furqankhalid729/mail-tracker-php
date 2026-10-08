@@ -7,6 +7,7 @@ A lightweight email CRM and campaign manager that runs on ordinary shared hostin
 - **Email.** A composer with templates, `{{variables}}`, live preview, attachments and drafts. Sends through SMTP (PHPMailer) or Gmail OAuth.
 - **Tracking.** Opens (approximate), signed click redirects, unsubscribe (including RFC 8058 one-click), delivery and bounces (webhooks + IMAP DSN), and replies (IMAP / Gmail API with Message-ID matching).
 - **Team & roles.** Several Super Admins per workspace, plus Admin, Manager, Email Marketer and Member roles. Admins can create logins for teammates directly.
+- **Calls (Zoom Phone).** Connect Zoom once with OAuth and assign phone numbers to closers. Call history syncs every 15 minutes. Closers see KPIs for their own numbers; admins see every closer, combined totals and day-by-day stats.
 - **Tasks.** Create tasks, assign them to teammates, set priority and due dates, post progress (status, %, comments) and follow the team's workload in a progress report.
 - **CRM.** A drag-and-drop pipeline board (the CRM stage is kept separate from the email status), an inbox with threaded replies, notes, a global activity feed, analytics charts and a dashboard.
 
@@ -48,6 +49,7 @@ A lightweight email CRM and campaign manager that runs on ordinary shared hostin
    */5 * * * *   /usr/bin/php /home/USERNAME/public_html/cron/check-inbox.php
    */5 * * * *   /usr/bin/php /home/USERNAME/public_html/cron/process-webhooks.php
    */15 * * * *  /usr/bin/php /home/USERNAME/public_html/cron/retry-failed.php
+   */15 * * * *  /usr/bin/php /home/USERNAME/public_html/cron/sync-zoom-calls.php
    30 3 * * *    /usr/bin/php /home/USERNAME/public_html/cron/cleanup.php
    ```
    **Finding the PHP CLI path.** Hostinger's cron form usually pre-fills it. You can also run `which php` over SSH, or use the version-specific binary (for example `/opt/alt/php82/usr/bin/php`).
@@ -68,7 +70,7 @@ A lightweight email CRM and campaign manager that runs on ordinary shared hostin
 - `ALLOW_REGISTRATION=false` once your team has accounts. Add teammates in *Settings → Members*.
 
 ### Upgrading an existing install
-Import `migrations/001_roles_and_tasks.sql` once (phpMyAdmin → *Import*). It adds the new roles and the task tables, and it is safe to run again. Fresh installs get these from `database.sql`.
+Import the files in `migrations/` once each, in order (phpMyAdmin → *Import*): `001_roles_and_tasks.sql`, then `002_closers_and_zoom.sql`. Each is safe to run again. Fresh installs get these from `database.sql`.
 
 ---
 
@@ -80,6 +82,7 @@ Import `migrations/001_roles_and_tasks.sql` once (phpMyAdmin → *Import*). It a
 | **Admin** | Members, settings and mail accounts. Cannot change or create Super Admins. |
 | **Manager** | Assigns tasks to anyone, sees all tasks and the team progress report, deletes and exports customers. |
 | **Email Marketer** | Campaigns and templates, customer import, works on their own tasks. |
+| **Closer** | Only the Inbox, viewing and emailing customers, and a Calls dashboard for their own assigned numbers. The pages are listed in `CLOSER_PAGES` in `includes/permissions.php`. |
 | **Member** | Customers, notes and inbox, views campaigns, works on their own tasks. |
 
 Each role also has everything the roles below it have. The rules live in one place, `PERMISSIONS` in `includes/permissions.php`. Change the minimum role there to adjust who can do what.
@@ -106,6 +109,16 @@ cron every minute → atomically claim ≤ N jobs → check: unsubscribed? bounc
 - **Bounces** come from webhooks or from bounce (DSN) messages read through IMAP. A hard bounce suppresses the customer.
 - **Privacy.** IP and user-agent storage can be switched off, are erased after a retention period you choose, and can be purged on demand (*Settings → Tracking & privacy*).
 
+## Zoom Phone calls
+1. Create an app in the [Zoom App Marketplace](https://marketplace.zoom.us/) (*Develop → Build App → General App*, **admin-managed**).
+2. Set the OAuth redirect URL (and allow list) to `https://yourdomain.com/calls/zoom.php`.
+3. Add the scope `phone:read:list_call_logs:admin`. Optionally add `user:read:user:admin`, which shows who connected.
+4. Put the Client ID and Client Secret in `.env` as `ZOOM_CLIENT_ID` / `ZOOM_CLIENT_SECRET`.
+5. In the app, open **Calls → Zoom** and click **Connect Zoom** as a Zoom account admin. The first sync fetches 90 days of history.
+6. In **Calls → Closer numbers**, assign each closer their Zoom Phone numbers or extensions. You can type them in or upload a CSV with `email,phone_number,label`. Numbers match in any format, using the last 10 digits.
+
+A call belongs to a closer when the caller or callee number matches one of their assigned numbers. Changing assignments re-attributes past calls too. A call counts as *connected* when Zoom reports it as answered. Talk time is the sum of connected-call durations. Data comes from the account-level `GET /phone/call_history` API.
+
 ## Gmail / Google Workspace
 - **Simplest option.** Use SMTP with an [App Password](https://myaccount.google.com/apppasswords) (`smtp.gmail.com:587 STARTTLS`, IMAP `imap.gmail.com:993`).
 - **OAuth (optional).** Create an OAuth client of type *Web application* in Google Cloud Console. Add `https://yourdomain.com/mail-accounts/oauth.php` as the redirect URI, enable the Gmail API, and set `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`. Tokens are encrypted, refreshed server-side and never reach the browser. Replies are matched by Gmail thread ID and Message-ID headers.
@@ -123,7 +136,7 @@ The PHP built-in server ignores `.htaccess`, so test the access rules on Apache.
 
 ## Project layout
 ```
-customers/ campaigns/ tasks/ inbox/ activity/ templates/ mail-accounts/ tags/ settings/   pages (+ _form/_save partials)
+customers/ campaigns/ tasks/ calls/ inbox/ activity/ templates/ mail-accounts/ tags/ settings/   pages (+ _form/_save partials)
 api/            JSON endpoints (kanban, campaigns, customers, tags, activity, search)
 tracking/       open.php (pixel), click.php (signed redirect)
 unsubscribe/    public unsubscribe + one-click

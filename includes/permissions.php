@@ -5,13 +5,14 @@ declare(strict_types=1);
  * Workspace roles, highest first. A workspace can have several owners ("Super Admins").
  * Levels are used for "at least this role" checks via can().
  */
-const ROLE_LEVELS = ['member' => 1, 'marketer' => 2, 'manager' => 3, 'admin' => 4, 'owner' => 5];
+const ROLE_LEVELS = ['closer' => 1, 'member' => 1, 'marketer' => 2, 'manager' => 3, 'admin' => 4, 'owner' => 5];
 
 const ROLE_LABELS = [
     'owner' => 'Super Admin',
     'admin' => 'Admin',
     'manager' => 'Manager',
     'marketer' => 'Email Marketer',
+    'closer' => 'Closer',
     'member' => 'Member',
 ];
 
@@ -20,6 +21,7 @@ const ROLE_DESCRIPTIONS = [
     'admin' => 'Members, settings and mail accounts. Cannot change Super Admins.',
     'manager' => 'Assigns tasks to anyone, sees team progress, deletes and exports customers.',
     'marketer' => 'Runs campaigns and templates, imports customers, works on own tasks.',
+    'closer' => 'Only the inbox, emailing customers, and a Zoom calls dashboard for their own assigned numbers.',
     'member' => 'Works with customers and the inbox, views campaigns, works on own tasks.',
 ];
 
@@ -35,6 +37,20 @@ const PERMISSIONS = [
     'members.manage' => 'admin',
     'settings.manage' => 'admin',
     'mail_accounts.manage' => 'admin',
+    'calls.view_all' => 'admin',          // every closer's calls, combined and per-closer stats
+    'calls.manage' => 'admin',            // connect Zoom, assign numbers to closers
+];
+
+/**
+ * Closers are limited to these pages (paths relative to the app root; a trailing / means the whole folder).
+ * Change this list to widen or narrow what a Closer can open.
+ */
+const CLOSER_PAGES = [
+    'calls/index.php', 'calls/log.php',
+    'inbox/',
+    'customers/index.php', 'customers/view.php', 'customers/email.php', 'customers/actions.php',
+    'api/customers.php', 'api/search.php', 'api/kanban.php', 'api/tags.php',
+    'settings/index.php', 'settings/workspace.php', 'logout.php',
 ];
 
 function user_role(): string
@@ -51,6 +67,31 @@ function role_badge(?string $role): string
 {
     $color = ['owner' => 'violet', 'admin' => 'indigo', 'manager' => 'blue', 'marketer' => 'sky'][$role] ?? 'slate';
     return '<span class="badge badge-' . $color . ' !normal-case">' . e(role_label($role)) . '</span>';
+}
+
+function is_closer(): bool
+{
+    return user_role() === 'closer';
+}
+
+/** Keep Closers inside CLOSER_PAGES. Called from require_auth() on every signed-in page. */
+function enforce_closer_scope(): void
+{
+    if (!is_closer() || PHP_SAPI === 'cli') {
+        return;
+    }
+    $script = realpath((string) ($_SERVER['SCRIPT_FILENAME'] ?? '')) ?: '';
+    $root = realpath(APP_ROOT) ?: APP_ROOT;
+    $path = ltrim(str_replace('\\', '/', substr($script, strlen($root))), '/');
+    if (in_array($path, ['dashboard.php', 'index.php'], true)) {
+        redirect('calls/index.php');
+    }
+    foreach (CLOSER_PAGES as $allowed) {
+        if ($path === $allowed || (str_ends_with($allowed, '/') && str_starts_with($path, $allowed))) {
+            return;
+        }
+    }
+    abort(403, 'Closers can use Calls, the Inbox and customer emails only.');
 }
 
 function can(string $minRole): bool

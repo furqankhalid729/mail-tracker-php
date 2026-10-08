@@ -4,6 +4,9 @@ require_auth();
 $ws = ws_id();
 $workspace = current_workspace();
 $tab = in_array(input('tab'), ['workspace', 'sending', 'tracking', 'members', 'profile', 'cron'], true) ? input('tab') : 'workspace';
+if (is_closer()) {
+    $tab = 'profile';
+}
 $errors = get_errors();
 
 if (is_post()) {
@@ -181,7 +184,7 @@ $roleOptions = assignable_roles();
 $page_title = 'Settings';
 $active_nav = 'settings';
 require __DIR__ . '/../includes/header.php';
-$tabs = ['workspace' => 'Workspace', 'sending' => 'Sending limits', 'tracking' => 'Tracking & privacy', 'members' => 'Members', 'profile' => 'Profile', 'cron' => 'Cron & webhooks'];
+$tabs = is_closer() ? ['profile' => 'Profile'] : ['workspace' => 'Workspace', 'sending' => 'Sending limits', 'tracking' => 'Tracking & privacy', 'members' => 'Members', 'profile' => 'Profile', 'cron' => 'Cron & webhooks'];
 $disabled = $isAdmin ? '' : 'disabled';
 ?>
 <div class="page-header"><div><h1 class="page-title">Settings</h1><p class="page-subtitle"><?= e($workspace['name']) ?> · your role: <?= e(role_label(user_role())) ?></p></div></div>
@@ -327,7 +330,7 @@ $disabled = $isAdmin ? '' : 'disabled';
                     <div class="rounded-lg bg-slate-50 p-3"><div class="text-xs text-slate-500">Last inbox check</div><div class="font-medium"><?= e($lastInboxCheck ? time_ago($lastInboxCheck) : 'never') ?></div></div>
                 </div>
                 <p>In hPanel → <b>Advanced → Cron Jobs</b>, add (use the PHP path your host shows, often <code>/usr/bin/php</code> or <code>/opt/alt/php82/usr/bin/php</code>):</p>
-                <pre class="overflow-x-auto rounded-lg bg-slate-900 p-4 text-xs leading-relaxed text-slate-100"><?php foreach ([['* * * * *', 'process-email-queue.php'], ['*/5 * * * *', 'check-inbox.php'], ['*/5 * * * *', 'process-webhooks.php'], ['*/15 * * * *', 'retry-failed.php'], ['30 3 * * *', 'cleanup.php']] as [$when, $f]) {
+                <pre class="overflow-x-auto rounded-lg bg-slate-900 p-4 text-xs leading-relaxed text-slate-100"><?php foreach ([['* * * * *', 'process-email-queue.php'], ['*/5 * * * *', 'check-inbox.php'], ['*/5 * * * *', 'process-webhooks.php'], ['*/15 * * * *', 'retry-failed.php'], ['*/15 * * * *', 'sync-zoom-calls.php'], ['30 3 * * *', 'cleanup.php']] as [$when, $f]) {
                     echo e("$when $php " . APP_ROOT . "/cron/$f") . "\n";
                 } ?></pre>
                 <p class="font-medium">HTTP fallback (if CLI cron isn't available)</p>
