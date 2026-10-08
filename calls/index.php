@@ -62,9 +62,16 @@ if ($isAdmin && $f['closer'] === '') {
     }
 }
 
-$myNumbers = !$isAdmin || (int) $f['closer'] > 0
-    ? q_all('SELECT phone_number, label FROM closer_numbers WHERE workspace_id = ? AND user_id = ? ORDER BY phone_number', [$ws, $isAdmin ? (int) $f['closer'] : user_id()])
-    : [];
+// One closer's numbers, shown as a paginated table at the bottom (with calls in the selected range per number)
+$numbersUser = !$isAdmin ? user_id() : ((int) $f['closer'] > 0 ? (int) $f['closer'] : 0);
+$numbersTotal = $numbersUser ? (int) q_val('SELECT COUNT(*) FROM closer_numbers WHERE workspace_id = ? AND user_id = ?', [$ws, $numbersUser]) : 0;
+$numbersPage = paginate($numbersTotal, per_page(10));
+$myNumbers = $numbersTotal ? q_all(
+    'SELECT n.phone_number, n.label, n.created_at,
+        (SELECT COUNT(*) FROM zoom_calls c WHERE c.workspace_id = n.workspace_id AND c.closer_number_key = n.number_key AND c.start_time >= ? AND c.start_time < ?) calls_in_range
+     FROM closer_numbers n WHERE n.workspace_id = ? AND n.user_id = ? ORDER BY n.phone_number LIMIT ? OFFSET ?',
+    [$f['from'] . ' 00:00:00', date('Y-m-d', strtotime($f['to'] . ' +1 day')) . ' 00:00:00', $ws, $numbersUser, $numbersPage['per_page'], $numbersPage['offset']]
+) : [];
 $recent = q_all(
     "SELECT c.*, u.name closer_name, cu.first_name, cu.last_name, cu.full_name, cu.email customer_email
      FROM zoom_calls c LEFT JOIN users u ON u.id = c.closer_user_id LEFT JOIN customers cu ON cu.id = c.customer_id
@@ -102,14 +109,8 @@ require __DIR__ . '/../includes/header.php';
     </div>
 <?php endif; ?>
 
-<?php if (!$isAdmin || (int) $f['closer'] > 0): ?>
-    <div class="mb-4 flex flex-wrap items-center gap-2 text-sm">
-        <span class="text-slate-500"><?= $isAdmin ? 'Numbers:' : 'Your numbers:' ?></span>
-        <?php foreach ($myNumbers as $n): ?>
-            <span class="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs font-medium tabular-nums text-slate-700 ring-1 ring-slate-200"><?= e($n['phone_number']) ?><?= $n['label'] ? '<span class="text-slate-400">· ' . e($n['label']) . '</span>' : '' ?></span>
-        <?php endforeach; ?>
-        <?php if (!$myNumbers): ?><span class="text-amber-700">None assigned yet<?= $isAdmin ? '' : ': ask an admin to add your Zoom number' ?>.</span><?php endif; ?>
-    </div>
+<?php if ($numbersUser && !$numbersTotal): ?>
+    <div class="mb-4 text-sm text-amber-700"><?= $isAdmin ? 'This closer has no numbers assigned yet.' : 'No numbers assigned yet: ask an admin to add your Zoom number.' ?></div>
 <?php endif; ?>
 
 <?php require __DIR__ . '/_filters.php'; ?>
@@ -244,6 +245,31 @@ require __DIR__ . '/../includes/header.php';
         </div>
     </div>
 </div>
+
+<?php if ($numbersTotal): ?>
+    <div class="card mt-6 overflow-hidden">
+        <div class="card-header">
+            <h2 class="card-title"><?= $isAdmin ? 'Numbers' : 'Your numbers' ?> <span class="font-normal text-slate-400">(<?= number_format($numbersTotal) ?>)</span></h2>
+            <?php if (allowed('calls.manage')): ?><a class="text-xs font-medium text-indigo-600" href="<?= e(url('calls/numbers.php')) ?>">Manage</a><?php endif; ?>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="table">
+                <thead><tr><th>Number</th><th>Label</th><th class="text-right">Calls in range</th><th>Added</th></tr></thead>
+                <tbody>
+                <?php foreach ($myNumbers as $n): ?>
+                    <tr>
+                        <td class="font-medium tabular-nums text-slate-900"><?= e($n['phone_number']) ?></td>
+                        <td class="max-w-xs truncate text-slate-500"><?= e($n['label'] ?: '—') ?></td>
+                        <td class="text-right tabular-nums"><?= number_format((int) $n['calls_in_range']) ?></td>
+                        <td class="whitespace-nowrap text-xs text-slate-500"><?= e(format_dt($n['created_at'], 'M j, Y')) ?></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <?= $numbersTotal > 10 ? pagination_links($numbersPage) : '' ?>
+    </div>
+<?php endif; ?>
 
 <?php
 $chartDaily = ['labels' => [], 'out' => [], 'in' => [], 'connected' => []];

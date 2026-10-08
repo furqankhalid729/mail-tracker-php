@@ -5,6 +5,8 @@
  *   POST action=add     user_id + numbers (one per line, optional ", label")
  *   POST action=upload  CSV: email, phone_number[, label]
  *   POST action=remove  id
+ *   POST action=remove_all  user_id   (every number of one closer)
+ * The list shows one summary row per closer; ?show={user_id} opens that closer's numbers (paginated).
  */
 require_once __DIR__ . '/../includes/init.php';
 require_auth();
@@ -82,6 +84,7 @@ if (is_post()) {
         }
         $byUser = [];
         $skipped = [];
+        $notMembers = false;
         while (($row = fgetcsv($fh, 0, ',', '"', '')) !== false) {
             $email = strtolower(trim((string) ($row[0] ?? '')));
             if ($email === '' || $email === 'email' || str_starts_with($email, '#')) {
@@ -89,6 +92,7 @@ if (is_post()) {
             }
             if (!isset($users[$email])) {
                 $skipped[] = "$email (not a member of this workspace)";
+                $notMembers = true;
                 continue;
             }
             $byUser[$users[$email]][] = [$row[1] ?? '', $row[2] ?? ''];
@@ -102,10 +106,18 @@ if (is_post()) {
         }
         zoom_reattribute($ws);
         $report($added, $skipped);
+        if ($notMembers) {
+            flash('info', "This upload links closers to their own Zoom lines: the first column must be a team member's email. To import businesses to call, use Leads → Import CSV.");
+        }
     } elseif ($action === 'remove') {
         q('DELETE FROM closer_numbers WHERE id = ? AND workspace_id = ?', [input_int('id'), $ws]);
         zoom_reattribute($ws);
         flash('success', 'Number removed. Its calls are now unassigned.');
+        redirect(url($self, ['show' => input_int('user_id') ?: null]));
+    } elseif ($action === 'remove_all') {
+        $n = q('DELETE FROM closer_numbers WHERE workspace_id = ? AND user_id = ?', [$ws, input_int('user_id')])->rowCount();
+        zoom_reattribute($ws);
+        flash('success', number_format($n) . ' number' . ($n === 1 ? '' : 's') . ' removed. Their calls are now unassigned.');
     }
     redirect($self);
 }
@@ -113,17 +125,28 @@ if (is_post()) {
 $members = workspace_users();
 usort($members, fn($a, $b) => [$a['role'] !== 'closer', $a['name']] <=> [$b['role'] !== 'closer', $b['name']]);
 $since = date('Y-m-d H:i:s', strtotime('-30 days'));
-$numbers = q_all(
-    'SELECT n.*, u.name user_name, u.email user_email, m.role,
-        (SELECT COUNT(*) FROM zoom_calls c WHERE c.workspace_id = n.workspace_id AND c.closer_number_key = n.number_key AND c.start_time >= ?) calls_30d
+// One row per closer: how many numbers, and calls attributed to them in the last 30 days
+$summary = q_all(
+    'SELECT u.id, u.name, u.email, m.role, COUNT(*) numbers,
+        (SELECT COUNT(*) FROM zoom_calls c WHERE c.workspace_id = n.workspace_id AND c.closer_user_id = u.id AND c.start_time >= ?) calls_30d
      FROM closer_numbers n JOIN users u ON u.id = n.user_id
      LEFT JOIN workspace_members m ON m.user_id = n.user_id AND m.workspace_id = n.workspace_id
-     WHERE n.workspace_id = ? ORDER BY u.name, n.phone_number',
+     WHERE n.workspace_id = ? GROUP BY u.id, u.name, u.email, m.role, n.workspace_id ORDER BY u.name',
     [$since, $ws]
 );
-$grouped = [];
-foreach ($numbers as $n) {
-    $grouped[$n['user_id']][] = $n;
+$grouped = array_column($summary, null, 'id');
+
+// The numbers of one closer, only when asked for
+$show = $grouped[input_int('show')] ?? null;
+$showNumbers = [];
+$showPage = null;
+if ($show) {
+    $showPage = paginate((int) $show['numbers'], per_page(25));
+    $showNumbers = q_all(
+        'SELECT n.*, (SELECT COUNT(*) FROM zoom_calls c WHERE c.workspace_id = n.workspace_id AND c.closer_number_key = n.number_key AND c.start_time >= ?) calls_30d
+         FROM closer_numbers n WHERE n.workspace_id = ? AND n.user_id = ? ORDER BY n.phone_number LIMIT ? OFFSET ?',
+        [$since, $ws, $show['id'], $showPage['per_page'], $showPage['offset']]
+    );
 }
 $closersWithout = array_filter($members, fn($m) => $m['role'] === 'closer' && !isset($grouped[$m['id']]));
 $errors = get_errors();
@@ -149,27 +172,28 @@ require __DIR__ . '/../includes/header.php';
 
 <div class="grid gap-6 lg:grid-cols-3">
     <div class="space-y-4 lg:col-span-2">
-        <?php foreach ($grouped as $uid => $rows): $u = $rows[0]; ?>
+        <?php if ($grouped): ?>
             <div class="card overflow-hidden">
-                <div class="card-header">
-                    <div class="flex items-center gap-3">
-                        <span class="flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold <?= e(avatar_color($u['user_name'])) ?>" title="<?= e($u['user_name']) ?>"><?= e(user_initials($u['user_name'])) ?></span>
-                        <div><div class="text-sm font-semibold text-slate-900"><?= e($u['user_name']) ?></div><div class="text-xs text-slate-500"><?= e($u['user_email']) ?> · <?= e(role_label($u['role'])) ?></div></div>
-                    </div>
-                    <a class="text-xs font-medium text-indigo-600" href="<?= e(url('calls/index.php', ['closer' => $uid])) ?>">View stats</a>
-                </div>
                 <table class="table">
-                    <thead><tr><th>Number</th><th>Label</th><th class="text-right">Calls (30d)</th><th></th></tr></thead>
+                    <thead><tr><th>Closer</th><th class="text-right">Numbers</th><th class="text-right">Calls (30d)</th><th class="text-right">Actions</th></tr></thead>
                     <tbody>
-                    <?php foreach ($rows as $n): ?>
-                        <tr>
-                            <td class="font-medium tabular-nums text-slate-900"><?= e($n['phone_number']) ?></td>
-                            <td class="text-slate-500"><?= e($n['label'] ?: '—') ?></td>
-                            <td class="text-right tabular-nums"><?= number_format((int) $n['calls_30d']) ?></td>
-                            <td class="text-right">
-                                <form method="post" data-confirm="Remove <?= e($n['phone_number']) ?> from <?= e($u['user_name']) ?>? Its calls become unassigned." data-confirm-button="Remove">
-                                    <?= csrf_field() ?><input type="hidden" name="action" value="remove"><input type="hidden" name="id" value="<?= (int) $n['id'] ?>">
-                                    <button class="btn-icon hover:!text-red-600" aria-label="Remove number" title="Remove number"><?= icon('trash', 'h-4 w-4') ?></button>
+                    <?php foreach ($grouped as $uid => $u): $isShown = $show && (int) $show['id'] === (int) $uid; ?>
+                        <tr class="<?= $isShown ? 'bg-indigo-50/40' : '' ?>">
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold <?= e(avatar_color($u['name'])) ?>"><?= e(user_initials($u['name'])) ?></span>
+                                    <div class="min-w-0"><div class="truncate text-sm font-semibold text-slate-900"><?= e($u['name']) ?></div><div class="truncate text-xs text-slate-500"><?= e($u['email']) ?> · <?= e(role_label($u['role'])) ?></div></div>
+                                </div>
+                            </td>
+                            <td class="text-right font-medium tabular-nums"><?= number_format((int) $u['numbers']) ?></td>
+                            <td class="text-right tabular-nums"><?= number_format((int) $u['calls_30d']) ?></td>
+                            <td class="whitespace-nowrap text-right">
+                                <a class="text-xs font-medium text-indigo-600 hover:underline" href="<?= e(url($self, $isShown ? [] : ['show' => $uid])) ?>"><?= $isShown ? 'Hide numbers' : 'Show numbers' ?></a>
+                                <span class="mx-1 text-slate-300">·</span>
+                                <a class="text-xs font-medium text-indigo-600 hover:underline" href="<?= e(url('calls/index.php', ['closer' => $uid])) ?>">View stats</a>
+                                <form method="post" class="inline" data-confirm="Remove all <?= number_format((int) $u['numbers']) ?> numbers from <?= e($u['name']) ?>? Their calls become unassigned." data-confirm-button="Remove all">
+                                    <?= csrf_field() ?><input type="hidden" name="action" value="remove_all"><input type="hidden" name="user_id" value="<?= (int) $uid ?>">
+                                    <button class="btn-icon ml-1 hover:!text-red-600" aria-label="Remove all numbers" title="Remove all numbers"><?= icon('trash', 'h-4 w-4') ?></button>
                                 </form>
                             </td>
                         </tr>
@@ -177,7 +201,37 @@ require __DIR__ . '/../includes/header.php';
                     </tbody>
                 </table>
             </div>
-        <?php endforeach; ?>
+        <?php endif; ?>
+
+        <?php if ($show): ?>
+            <div class="card overflow-hidden">
+                <div class="card-header">
+                    <h2 class="card-title">Numbers for <?= e($show['name']) ?> <span class="font-normal text-slate-400">(<?= number_format((int) $show['numbers']) ?>)</span></h2>
+                    <a href="<?= e(url($self)) ?>" class="text-xs text-slate-500 hover:text-slate-700">Close</a>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="table">
+                        <thead><tr><th>Number</th><th>Label</th><th class="text-right">Calls (30d)</th><th></th></tr></thead>
+                        <tbody>
+                        <?php foreach ($showNumbers as $n): ?>
+                            <tr>
+                                <td class="max-w-[16rem] truncate font-medium tabular-nums text-slate-900" title="<?= e($n['phone_number']) ?>"><?= e($n['phone_number']) ?></td>
+                                <td class="max-w-[16rem] truncate text-slate-500" title="<?= e($n['label']) ?>"><?= e($n['label'] ?: '—') ?></td>
+                                <td class="text-right tabular-nums"><?= number_format((int) $n['calls_30d']) ?></td>
+                                <td class="text-right">
+                                    <form method="post" data-confirm="Remove <?= e($n['phone_number']) ?> from <?= e($show['name']) ?>? Its calls become unassigned." data-confirm-button="Remove">
+                                        <?= csrf_field() ?><input type="hidden" name="action" value="remove"><input type="hidden" name="id" value="<?= (int) $n['id'] ?>"><input type="hidden" name="user_id" value="<?= (int) $show['id'] ?>">
+                                        <button class="btn-icon hover:!text-red-600" aria-label="Remove number" title="Remove number"><?= icon('trash', 'h-4 w-4') ?></button>
+                                    </form>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <?= pagination_links($showPage) ?>
+            </div>
+        <?php endif; ?>
         <?php if (!$grouped): ?>
             <div class="card empty-state">
                 <span class="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50 text-indigo-600"><?= icon('users', 'h-6 w-6') ?></span>
@@ -209,14 +263,15 @@ require __DIR__ . '/../includes/header.php';
 
         <form method="post" enctype="multipart/form-data" class="card">
             <?= csrf_field() ?><input type="hidden" name="action" value="upload">
-            <div class="card-header"><div><h2 class="card-title">Upload CSV</h2><p class="text-xs text-slate-500">For many closers at once.</p></div></div>
+            <div class="card-header"><div><h2 class="card-title">Upload closers' numbers</h2><p class="text-xs text-slate-500">Each closer's own Zoom line, for many closers at once.</p></div></div>
             <div class="card-body space-y-3">
                 <pre class="rounded bg-slate-100 px-3 py-2 text-xs text-slate-600">email,phone_number,label
 jane@company.com,+14085333518,Main
 jane@company.com,+14085333519,
 sam@company.com,1107,Ext</pre>
                 <input type="file" name="csv" accept=".csv,text/csv" required class="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium hover:file:bg-slate-200">
-                <p class="help">The email must belong to a member of this workspace. Add closers first in Settings → Members.</p>
+                <p class="help"><b>email</b> is the closer's login email (add closers first in Settings → Members). <b>phone_number</b> is the Zoom line or extension they call from.</p>
+                <p class="help">Importing businesses to call? Use <a class="font-medium text-indigo-600 hover:underline" href="<?= e(url('leads/import.php')) ?>">Leads → Import CSV</a> instead.</p>
                 <button class="btn-secondary w-full"><?= icon('upload', 'h-4 w-4') ?> Upload</button>
             </div>
         </form>
