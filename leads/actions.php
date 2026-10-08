@@ -3,6 +3,8 @@
  * Lead state changes.
  *   status  id, status_id[, note]       anyone who can see the lead (closers on their own leads)
  *   note    id, note
+ *   email   id, email                   open the CRM email composer for one of the lead's emails
+ *                                       (reuses the customer with that email, or creates one from the lead)
  *   assign  id, user_id (0 = unassign)  leads.manage
  *   delete  id                          leads.manage
  *   bulk    ids[] | all_matching + filters, bulk = set_status | assign | delete
@@ -86,6 +88,35 @@ switch ($action) {
         db_update('leads', ['updated_at' => now()], 'id = ?', [$id]);
         flash('success', 'Note added.');
         break;
+
+    case 'email':
+        $email = strtolower(trim((string) input('email')));
+        if (!in_array($email, array_filter(explode('; ', (string) $lead['emails'])), true)) {
+            flash('error', 'That email is not on this lead.');
+            break;
+        }
+        $customerId = (int) q_val('SELECT id FROM customers WHERE workspace_id = ? AND email = ? ORDER BY id LIMIT 1', [$ws, $email]);
+        if (!$customerId) {
+            $phones = phones_for_leads([$id])[$id] ?? [];
+            $now = now();
+            $customerId = db_insert('customers', customer_data_from_input([
+                'email' => $email,
+                'company' => $lead['name'],
+                'phone' => $phones[0]['phone_number'] ?? '',
+                'website' => $lead['website'] ?? '',
+                'source' => mb_substr('Lead' . ($lead['source'] ? ': ' . $lead['source'] : ''), 0, 100),
+            ]) + [
+                'workspace_id' => $ws,
+                'status' => 'active',
+                'crm_status' => 'New',
+                'created_at' => $now,
+                'updated_at' => $now,
+                'last_activity_at' => $now,
+            ]);
+            log_activity($ws, 'created', 'Created from lead "' . $lead['name'] . '"', $customerId);
+            log_lead_activity($id, 'note', 'Added ' . $email . ' as a customer to email them.');
+        }
+        redirect(url('customers/email.php', ['customer_id' => $customerId]));
 
     case 'assign':
         require_permission('leads.manage');

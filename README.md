@@ -82,7 +82,7 @@ Import the files in `migrations/` once each, in order (phpMyAdmin → *Import*):
 | **Admin** | Members, settings and mail accounts. Cannot change or create Super Admins. |
 | **Manager** | Assigns tasks to anyone, sees all tasks and the team progress report, deletes and exports customers. |
 | **Email Marketer** | Campaigns and templates, customer import, works on their own tasks. |
-| **Closer** | Only their assigned Leads, the Inbox, viewing and emailing customers, and a Calls dashboard for their own assigned numbers. The pages are listed in `CLOSER_PAGES` in `includes/permissions.php`. |
+| **Closer** | Only their assigned Leads, the Inbox, adding, editing and emailing customers (a lead's **Send email** creates the customer for them), and a Calls dashboard for their own assigned numbers. The pages are listed in `CLOSER_PAGES` in `includes/permissions.php`. |
 | **Member** | Customers, notes and inbox, views campaigns, works on their own tasks. |
 
 Each role also has everything the roles below it have. The rules live in one place, `PERMISSIONS` in `includes/permissions.php`. Change the minimum role there to adjust who can do what.

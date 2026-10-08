@@ -78,7 +78,11 @@ require __DIR__ . '/../includes/header.php';
                     <dt class="text-xs font-medium text-slate-500">Emails</dt>
                     <dd class="mt-1 space-y-1">
                         <?php foreach (array_filter(explode('; ', (string) $lead['emails'])) as $em): ?>
-                            <a href="mailto:<?= e($em) ?>" class="block truncate text-slate-900 hover:text-indigo-600"><?= e($em) ?></a>
+                            <form method="post" action="<?= e(url('leads/actions.php')) ?>" class="flex items-center justify-between gap-2">
+                                <?= csrf_field() ?><input type="hidden" name="action" value="email"><input type="hidden" name="id" value="<?= $id ?>"><input type="hidden" name="email" value="<?= e($em) ?>">
+                                <span class="min-w-0 truncate text-slate-900" title="<?= e($em) ?>"><?= e($em) ?></span>
+                                <button class="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-indigo-600 hover:underline"><?= icon('send', 'h-3.5 w-3.5') ?> Send email</button>
+                            </form>
                         <?php endforeach; ?>
                         <?php if (!$lead['emails']): ?><span class="text-slate-400">—</span><?php endif; ?>
                     </dd>

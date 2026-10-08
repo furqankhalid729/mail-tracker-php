@@ -21,7 +21,7 @@ const ROLE_DESCRIPTIONS = [
     'admin' => 'Members, settings and mail accounts. Cannot change Super Admins.',
     'manager' => 'Assigns tasks to anyone, sees team progress, deletes and exports customers.',
     'marketer' => 'Runs campaigns and templates, imports customers, works on own tasks.',
-    'closer' => 'Only their assigned leads, the inbox, emailing customers, and a Zoom calls dashboard for their own numbers.',
+    'closer' => 'Only their assigned leads, the inbox, adding and emailing customers, and a Zoom calls dashboard for their own numbers.',
     'member' => 'Works with customers and the inbox, views campaigns, works on own tasks.',
 ];
 
@@ -51,7 +51,7 @@ const CLOSER_PAGES = [
     'calls/index.php', 'calls/log.php',
     'leads/index.php', 'leads/view.php', 'leads/actions.php',
     'inbox/',
-    'customers/index.php', 'customers/view.php', 'customers/email.php', 'customers/actions.php',
+    'customers/index.php', 'customers/view.php', 'customers/create.php', 'customers/edit.php', 'customers/email.php', 'customers/actions.php',
     'api/customers.php', 'api/search.php', 'api/kanban.php', 'api/tags.php',
     'settings/index.php', 'settings/workspace.php', 'logout.php',
 ];
@@ -94,7 +94,7 @@ function enforce_closer_scope(): void
             return;
         }
     }
-    abort(403, 'Closers can use Leads, Calls, the Inbox and customer emails only.');
+    abort(403, 'Closers can use Leads, Calls, the Inbox and Customers (add, edit, email) only.');
 }
 
 function can(string $minRole): bool
