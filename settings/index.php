@@ -73,6 +73,7 @@ if (is_post()) {
                 break;
             }
             if (!is_valid_email($email)) {
+                $back .= '#add-member';
                 keep_old_input();
                 flash_errors(['member_email' => 'Enter a valid email address.']);
                 break;
@@ -82,6 +83,7 @@ if (is_post()) {
                 // No account yet: create a login for them (they can change the password under Profile)
                 $errs = validate($_POST, ['name' => 'required|max:120', 'password' => 'required|min:8|max:200'], ['password' => 'Temporary password']);
                 if ($errs) {
+                    $back .= '#add-member';
                     keep_old_input();
                     flash_errors($errs + ['member_email' => 'No account uses this email yet, so enter a name and a temporary password to create one.']);
                     break;
@@ -268,7 +270,7 @@ $disabled = $isAdmin ? '' : 'disabled';
             </table>
         </div>
         <?php if ($canManageMembers): ?>
-        <form method="post" class="card" x-data="{ role: <?= e(json_encode((string) old('role', 'marketer'))) ?> }">
+        <form method="post" class="card scroll-mt-20" id="add-member" x-data="{ role: <?= e(json_encode((string) old('role', 'marketer'))) ?> }">
             <?= csrf_field() ?><input type="hidden" name="action" value="member_add">
             <div class="card-header"><div><h2 class="card-title">Add team member</h2><p class="text-xs text-slate-500">If they already have an account, only the email is needed. Otherwise enter a name and a temporary password to create their login.</p></div></div>
             <div class="card-body grid gap-4 sm:grid-cols-2">

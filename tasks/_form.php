@@ -35,7 +35,7 @@ $assignee = (int) old('assigned_to', array_key_exists('assigned_to', $task) ? $t
                         <select class="input" id="assigned_to" name="assigned_to">
                             <option value="">Unassigned</option>
                             <?php foreach ($users as $u): ?>
-                                <option value="<?= (int) $u['id'] ?>" <?= (int) $u['id'] === $assignee ? 'selected' : '' ?>><?= e($u['name']) ?> · <?= e(role_label($u['role'])) ?><?= (int) $u['id'] === user_id() ? ' (you)' : '' ?></option>
+                                <option value="<?= (int) $u['id'] ?>" <?= (int) $u['id'] === $assignee ? 'selected' : '' ?>><?= e($u['name']) ?><?= (int) $u['id'] === user_id() ? ' (you)' : '' ?></option>
                             <?php endforeach; ?>
                         </select>
                     <?php else: ?>
@@ -81,10 +81,10 @@ $assignee = (int) old('assigned_to', array_key_exists('assigned_to', $task) ? $t
                     <template x-if="!selected">
                         <input class="input" x-model="q" @input.debounce.250ms="search()" placeholder="Search by name, email, company…" autocomplete="off">
                     </template>
-                    <div x-show="results.length" x-cloak class="dropdown left-0 right-0 max-h-64 overflow-y-auto">
+                    <div x-show="results.length" x-cloak class="dropdown left-0 right-0 !min-w-0 max-h-64 overflow-y-auto overflow-x-hidden">
                         <template x-for="c in results" :key="c.id">
-                            <button type="button" class="dropdown-item flex-col !items-start !gap-0" @click="selected = c; results = []; q = ''">
-                                <span class="font-medium" x-text="c.name"></span><span class="text-xs text-slate-500" x-text="c.email"></span>
+                            <button type="button" class="dropdown-item min-w-0 flex-col !items-start !gap-0" @click="selected = c; results = []; q = ''">
+                                <span class="w-full truncate font-medium" x-text="c.name"></span><span class="w-full truncate text-xs text-slate-500" x-text="c.email"></span>
                             </button>
                         </template>
                     </div>

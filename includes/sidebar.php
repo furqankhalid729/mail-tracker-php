@@ -44,7 +44,7 @@ $renderNav = function () use ($nav, $active_nav, $unread, $myOpenTaskCount, $myW
                 <?php if ($key === 'inbox' && $unread > 0): ?>
                     <span class="rounded-full bg-indigo-600 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-white"><?= $unread > 99 ? '99+' : $unread ?></span>
                 <?php elseif ($key === 'tasks' && $myOpenTaskCount > 0): ?>
-                    <span class="rounded-full bg-slate-200 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-slate-700"><?= $myOpenTaskCount > 99 ? '99+' : $myOpenTaskCount ?></span>
+                    <span class="rounded-full bg-indigo-100 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-indigo-700"><?= $myOpenTaskCount > 99 ? '99+' : $myOpenTaskCount ?></span>
                 <?php endif; ?>
             </a>
         <?php endforeach; ?>

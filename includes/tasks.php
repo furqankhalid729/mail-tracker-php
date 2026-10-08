@@ -77,28 +77,33 @@ function log_task_update(int $taskId, string $type, ?string $body = null): void
 
 /**
  * Apply a status and/or progress change, keeping them consistent:
- * done ⇒ 100%, progress on a backlog/to-do task ⇒ in progress, 100% ⇒ review (unless already done).
+ *   - done ⇒ 100%
+ *   - re-opening a done task ⇒ below 100% (90% unless a lower value was given; "in review" may stay at 100%)
+ *   - when only progress moves: progress on a backlog/to-do task ⇒ in progress, 100% ⇒ in review
+ * Saving a task without touching status or progress never changes either.
  * Returns the columns to update.
  */
 function task_state_change(array $task, ?string $status, ?int $progress): array
 {
     $status ??= $task['status'];
-    $progressGiven = $progress !== null;
-    $progress = $progressGiven ? max(0, min(100, $progress)) : (int) $task['progress'];
+    $oldProgress = (int) $task['progress'];
+    $progress = $progress === null ? $oldProgress : max(0, min(100, $progress));
+    $progressMoved = $progress !== $oldProgress;
 
     if ($status === 'done') {
         $progress = 100;
-    } elseif ($status === $task['status']) {
-        // Only progress moved: nudge the status along with it
+    } elseif ($task['status'] === 'done') {
+        // Re-opened: the form still carries the old 100%, so drop below it
+        if ($progress >= 100 && $status !== 'review') {
+            $progress = 90;
+        }
+    } elseif ($status === $task['status'] && $progressMoved) {
         if ($progress > 0 && in_array($status, ['backlog', 'todo'], true)) {
             $status = 'in_progress';
         }
         if ($progress === 100 && in_array($status, ['backlog', 'todo', 'in_progress'], true)) {
             $status = 'review';
         }
-    } elseif ($task['status'] === 'done' && !$progressGiven) {
-        // Re-opened without a new progress value
-        $progress = 90;
     }
 
     return [
@@ -138,9 +143,9 @@ function task_due_label(array $task): string
     if (!$task['due_date']) {
         return '<span class="text-slate-400">—</span>';
     }
-    $label = e(format_dt($task['due_date'], 'M j, Y'));
+    $label = e(format_dt($task['due_date'], substr($task['due_date'], 0, 4) === date('Y') ? 'M j' : 'M j, Y'));
     if (task_is_overdue($task)) {
-        return '<span class="font-medium text-red-600">' . $label . ' · overdue</span>';
+        return '<span class="inline-flex items-center gap-1.5 font-medium text-red-600">' . $label . '<span class="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ring-inset ring-red-600/20">Overdue</span></span>';
     }
     if ($task['due_date'] === date('Y-m-d') && in_array($task['status'], TASK_OPEN_STATUSES, true)) {
         return '<span class="font-medium text-amber-600">Today</span>';

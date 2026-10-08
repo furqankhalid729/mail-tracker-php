@@ -146,14 +146,14 @@ require __DIR__ . '/../includes/header.php';
     <div class="card overflow-hidden">
         <div class="overflow-x-auto">
             <table class="table">
-                <thead><tr><th>Member</th><th class="text-right">Backlog</th><th class="text-right">Open</th><th class="text-right">In progress</th><th class="text-right">Overdue</th><th class="text-right">Done (30d)</th><th>Avg. progress (open)</th><th>Completion</th><th>Last update</th></tr></thead>
+                <thead><tr><th>Member</th><th class="text-right">Backlog</th><th class="text-right">Open</th><th class="text-right">In progress</th><th class="text-right">Overdue</th><th class="text-right">Done 30d</th><th>Avg. progress</th><th>Completed</th><th>Updated</th></tr></thead>
                 <tbody>
                 <?php foreach ($team as $m): $all = (int) $m['total']; ?>
                     <tr>
                         <td>
-                            <a href="<?= e(url('tasks/index.php', ['view' => 'all', 'assignee' => $m['id']])) ?>" class="flex items-center gap-3">
-                                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold <?= e(avatar_color($m['name'])) ?>"><?= e(initials($m['name'])) ?></span>
-                                <span class="min-w-0"><span class="block font-medium text-slate-900 hover:text-indigo-600"><?= e($m['name']) ?></span><span class="block text-xs text-slate-500"><?= e(role_label($m['role'])) ?></span></span>
+                            <a href="<?= e(url('tasks/index.php', ['view' => 'all', 'assignee' => $m['id']])) ?>" class="flex items-center gap-3 whitespace-nowrap">
+                                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold <?= e(avatar_color($m['name'])) ?>" title="<?= e($m['name']) ?>"><?= e(user_initials($m['name'])) ?></span>
+                                <span><span class="block font-medium text-slate-900 hover:text-indigo-600"><?= e($m['name']) ?></span><span class="block text-xs text-slate-500"><?= e(role_label($m['role'])) ?></span></span>
                             </a>
                         </td>
                         <td class="text-right tabular-nums text-slate-500"><?= (int) $m['backlog'] ?></td>
@@ -162,8 +162,8 @@ require __DIR__ . '/../includes/header.php';
                         <td class="text-right tabular-nums <?= $m['overdue'] ? 'font-semibold text-red-600' : '' ?>"><?= (int) $m['overdue'] ?></td>
                         <td class="text-right tabular-nums text-emerald-600"><?= (int) $m['done_30d'] ?></td>
                         <td><?= $m['avg_progress'] !== null ? task_progress_bar((int) $m['avg_progress']) : '<span class="text-slate-400">—</span>' ?></td>
-                        <td class="text-xs text-slate-500"><?= $all ? (int) $m['done_all'] . ' / ' . $all . ' · ' . pct((int) $m['done_all'], $all, 0) : '—' ?></td>
-                        <td class="text-xs text-slate-500"><?= e(time_ago($m['last_update'])) ?></td>
+                        <td class="whitespace-nowrap text-xs text-slate-500"><?= $all ? (int) $m['done_all'] . ' / ' . $all . ' · ' . pct((int) $m['done_all'], $all, 0) : '—' ?></td>
+                        <td class="whitespace-nowrap text-xs text-slate-500"><?= e(time_ago($m['last_update'])) ?></td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>
@@ -210,6 +210,7 @@ require __DIR__ . '/../includes/header.php';
             <button class="btn-secondary"><?= icon('filter', 'h-4 w-4') ?> Filter</button>
             <?php if ($q !== '' || $status !== 'open' || $priority || $due || $assignee !== ''): ?><a href="<?= e(url('tasks/index.php', ['view' => $view])) ?>" class="btn-ghost">Clear</a><?php endif; ?>
         </form>
+        <?php if ($tasks): ?>
         <div class="overflow-x-auto">
             <table class="table">
                 <thead><tr>
@@ -236,7 +237,7 @@ require __DIR__ . '/../includes/header.php';
                         <?php if ($view !== 'mine'): ?>
                             <td class="whitespace-nowrap">
                                 <?php if ($t['assigned_to']): ?>
-                                    <span class="flex items-center gap-2"><span class="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold <?= e(avatar_color($t['assignee_name'])) ?>"><?= e(initials($t['assignee_name'])) ?></span><?= e($t['assignee_name']) ?></span>
+                                    <span class="flex items-center gap-2"><span class="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold <?= e(avatar_color($t['assignee_name'])) ?>" title="<?= e($t['assignee_name']) ?>"><?= e(user_initials($t['assignee_name'])) ?></span><?= e($t['assignee_name']) ?></span>
                                 <?php else: ?><span class="text-slate-400">Unassigned</span><?php endif; ?>
                             </td>
                         <?php endif; ?>
@@ -258,6 +259,7 @@ require __DIR__ . '/../includes/header.php';
                 </tbody>
             </table>
         </div>
+        <?php endif; ?>
         <?php if (!$tasks): ?>
             <div class="empty-state">
                 <span class="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50 text-indigo-600"><?= icon('tasks', 'h-6 w-6') ?></span>

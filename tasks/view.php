@@ -32,7 +32,7 @@ require __DIR__ . '/../includes/header.php';
         <a href="<?= e(url('tasks/edit.php', ['id' => $tid])) ?>" class="btn-secondary"><?= icon('pencil', 'h-4 w-4') ?> Edit</a>
         <form method="post" action="<?= e(url('tasks/delete.php')) ?>" data-confirm="Delete “<?= e($task['title']) ?>” and its history?" data-confirm-button="Delete">
             <?= csrf_field() ?><input type="hidden" name="id" value="<?= $tid ?>">
-            <button class="btn-secondary text-red-600"><?= icon('trash', 'h-4 w-4') ?></button>
+            <button class="btn-secondary text-red-600" aria-label="Delete task" title="Delete task"><?= icon('trash', 'h-4 w-4') ?></button>
         </form>
     </div>
     <?php endif; ?>
@@ -55,7 +55,7 @@ require __DIR__ . '/../includes/header.php';
                 <div class="grid gap-4 sm:grid-cols-2">
                     <div>
                         <label class="label" for="status">Status</label>
-                        <select class="input" id="status" name="status" x-model="status" @change="if (status === 'done') progress = 100">
+                        <select class="input" id="status" name="status" x-model="status" @change="if (status === 'done') progress = 100; else if (progress >= 100 && status !== 'review') progress = 90">
                             <?php foreach (TASK_STATUSES as $k => $l): ?><option value="<?= $k ?>"><?= e($l) ?></option><?php endforeach; ?>
                         </select>
                     </div>
@@ -74,7 +74,7 @@ require __DIR__ . '/../includes/header.php';
         <?php endif; ?>
 
         <div class="card">
-            <div class="card-header"><h2 class="card-title">Timeline</h2><span class="text-xs text-slate-400"><?= count($updates) ?> updates</span></div>
+            <div class="card-header"><h2 class="card-title">Timeline</h2><span class="text-xs text-slate-400"><?= count($updates) ?> update<?= count($updates) === 1 ? '' : 's' ?></span></div>
             <ul class="divide-y divide-slate-100">
                 <?php foreach ($updates as $u):
                     $who = '<span class="font-medium text-slate-800">' . e($u['user_name'] ?: 'Someone') . '</span>';
@@ -86,7 +86,7 @@ require __DIR__ . '/../includes/header.php';
                     };
                 ?>
                     <li class="flex gap-3 px-5 py-3">
-                        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold <?= e(avatar_color((string) ($u['user_name'] ?? '?'))) ?>"><?= e(initials($u['user_name'])) ?></span>
+                        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold <?= e(avatar_color((string) ($u['user_name'] ?? '?'))) ?>" title="<?= e($u['user_name']) ?>"><?= e(user_initials($u['user_name'])) ?></span>
                         <div class="min-w-0 flex-1">
                             <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-600"><?= $text ?><span class="text-xs text-slate-400"><?= e(time_ago($u['created_at'])) ?></span></div>
                             <?php if ($u['type'] === 'comment'): ?>

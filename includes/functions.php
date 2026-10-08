@@ -341,6 +341,13 @@ function initials(?string $name, ?string $fallback = null): string
     return $out;
 }
 
+/** Teammate avatar text: first two letters of the first name ("Max Marketer" → "Ma"), so colleagues sharing initials stay distinct. */
+function user_initials(?string $name): string
+{
+    $first = preg_split('/\s+/', trim((string) $name), -1, PREG_SPLIT_NO_EMPTY)[0] ?? '';
+    return $first === '' ? '?' : mb_strtoupper(mb_substr($first, 0, 1)) . mb_strtolower(mb_substr($first, 1, 1));
+}
+
 function customer_name(array $c): string
 {
     $n = trim(($c['full_name'] ?? '') ?: trim(($c['first_name'] ?? '') . ' ' . ($c['last_name'] ?? '')));
