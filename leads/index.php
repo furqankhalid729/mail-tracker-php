@@ -236,7 +236,7 @@ require __DIR__ . '/../includes/header.php';
                     </td>
                     <td class="whitespace-nowrap text-sm">
                         <?php foreach (array_slice($lp, 0, 2) as $ph): ?>
-                            <a href="<?= e(lead_tel_href($ph['phone_number'])) ?>" class="block tabular-nums text-slate-700 hover:text-indigo-600"><?= e($ph['phone_number']) ?></a>
+                            <button type="button" data-copy="<?= e($ph['phone_number']) ?>" title="Copy number" class="block tabular-nums text-slate-700 hover:text-indigo-600"><?= e($ph['phone_number']) ?></button>
                         <?php endforeach; ?>
                         <?php if (count($lp) > 2): ?><a href="<?= e(url('leads/view.php', ['id' => $l['id']])) ?>" class="text-xs text-slate-400">+<?= count($lp) - 2 ?> more</a><?php endif; ?>
                         <?php if (!$lp): ?><span class="text-slate-400">—</span><?php endif; ?>

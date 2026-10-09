@@ -67,7 +67,7 @@ require __DIR__ . '/../includes/header.php';
                     <dd class="mt-1 space-y-1">
                         <?php foreach ($phones as $ph): ?>
                             <div class="flex items-center gap-2">
-                                <a href="<?= e(lead_tel_href($ph['phone_number'])) ?>" class="inline-flex items-center gap-1.5 font-medium tabular-nums text-slate-900 hover:text-indigo-600"><?= icon('phone', 'h-3.5 w-3.5 text-slate-400') ?><?= e($ph['phone_number']) ?></a>
+                                <button type="button" data-copy="<?= e($ph['phone_number']) ?>" title="Copy number" class="inline-flex items-center gap-1.5 font-medium tabular-nums text-slate-900 hover:text-indigo-600"><?= icon('phone', 'h-3.5 w-3.5 text-slate-400') ?><?= e($ph['phone_number']) ?></button>
                                 <?php if (!empty($callsByKey[$ph['number_key']])): ?><span class="text-xs text-slate-400"><?= $callsByKey[$ph['number_key']] ?> call<?= $callsByKey[$ph['number_key']] > 1 ? 's' : '' ?></span><?php endif; ?>
                             </div>
                         <?php endforeach; ?>

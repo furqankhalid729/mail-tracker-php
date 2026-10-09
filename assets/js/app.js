@@ -32,7 +32,35 @@
         if (window.Alpine) Alpine.store('toasts').push(message, type);
     };
 
-    window.escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    /** Copy text to the clipboard; falls back to execCommand where the Clipboard API is unavailable (plain http). */
+    window.copyText = async (text) => {
+        try {
+            await navigator.clipboard.writeText(text);
+        } catch (e) {
+            const ta = Object.assign(document.createElement('textarea'), { value: text });
+            ta.style.cssText = 'position:fixed;opacity:0';
+            document.body.appendChild(ta);
+            ta.select();
+            const ok = document.execCommand('copy');
+            ta.remove();
+            if (!ok) throw e;
+        }
+    };
+
+    /** Any element with data-copy="text" copies that text when clicked. */
+    document.addEventListener('click', async (ev) => {
+        const el = ev.target.closest('[data-copy]');
+        if (!el) return;
+        ev.preventDefault();
+        try {
+            await window.copyText(el.dataset.copy);
+            window.toast(`Copied ${el.dataset.copy}`);
+        } catch (e) {
+            window.toast('Could not copy to the clipboard', 'error');
+        }
+    });
+
+    window.escapeHtml =(s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
     document.addEventListener('alpine:init', () => {
         Alpine.store('toasts', {
