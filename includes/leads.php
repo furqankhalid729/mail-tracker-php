@@ -27,7 +27,7 @@ const LEAD_FIELDS = [
     'notes' => 'Notes',
 ];
 
-const LEAD_FILTER_KEYS = ['q', 'status', 'assigned', 'attempts', 'last_call', 'connected', 'has_phone', 'has_email', 'has_website', 'min_rating', 'source', 'field', 'field_value'];
+const LEAD_FILTER_KEYS = ['q', 'status', 'assigned', 'attempts', 'last_call', 'connected', 'has_phone', 'has_email', 'has_website', 'min_rating', 'source', 'field', 'field_value', 'tz'];
 
 /* ---------------------------------------------------------------------------
  * Statuses
@@ -206,6 +206,12 @@ function lead_filter_sql(array $f, bool $withStatus = true): array
         $where[] = 'l.rating >= ?';
         $params[] = (float) $f['min_rating'];
     }
+    // Time zone from the phones' area codes: a lead matches when any of its numbers is in the zone.
+    if (($f['tz'] ?? '') === 'unknown') {
+        $where[] = lead_unknown_zone_sql();
+    } elseif (isset($f['tz'], US_AREA_CODES[$f['tz']])) {
+        $where[] = 'EXISTS (SELECT 1 FROM lead_phones p WHERE p.lead_id = l.id AND ' . area_code_in_zones_sql('p.number_key', [$f['tz']]) . ')';
+    }
     if (!empty($f['source'])) {
         $where[] = 'l.source = ?';
         $params[] = $f['source'];
@@ -358,6 +364,47 @@ function phones_for_leads(array $leadIds): array
         $out[$p['lead_id']][] = $p;
     }
     return $out;
+}
+
+/**
+ * Leads per time zone for a filter (its own tz filter ignored): ['eastern' => n, …, 'unknown' => n].
+ * A lead with numbers in two zones counts in both, matching the filter.
+ */
+function lead_time_zone_counts(array $f): array
+{
+    [$where, $params] = lead_filter_sql(array_diff_key($f, ['tz' => 1]));
+    $counts = array_fill_keys(array_keys(US_TIME_ZONES), 0);
+    foreach (q_all(
+        'SELECT z.tz, COUNT(*) n FROM (
+            SELECT DISTINCT l.id, ' . area_code_zone_case_sql('lp.number_key') . " tz
+            FROM leads l JOIN lead_phones lp ON lp.lead_id = l.id WHERE $where
+         ) z WHERE z.tz IS NOT NULL GROUP BY z.tz",
+        $params
+    ) as $r) {
+        $counts[$r['tz']] = (int) $r['n'];
+    }
+    $counts['unknown'] = (int) q_val(
+        "SELECT COUNT(*) FROM leads l WHERE $where AND " . lead_unknown_zone_sql(),
+        $params
+    );
+    return $counts;
+}
+
+/** WHERE (alias l): none of the lead's numbers has a known US area code. */
+function lead_unknown_zone_sql(): string
+{
+    return 'NOT EXISTS (SELECT 1 FROM lead_phones p WHERE p.lead_id = l.id AND ' . area_code_in_zones_sql('p.number_key', array_keys(US_AREA_CODES)) . ')';
+}
+
+/** Time-zone key of a lead from its phones (first number with a known area code). */
+function lead_time_zone(array $phones): ?string
+{
+    foreach ($phones as $ph) {
+        if ($zone = area_code_zone($ph['number_key'] ?? null)) {
+            return $zone;
+        }
+    }
+    return null;
 }
 
 /** Id of an existing lead with any of these numbers, or (when there are none) the same name and website. */

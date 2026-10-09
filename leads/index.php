@@ -40,8 +40,12 @@ if (!empty($filters['source']) && !in_array($filters['source'], $sources, true))
     $sources[] = $filters['source']; // keep a filter on a now-empty list visible so it can be cleared
 }
 $extraKeys = lead_extra_keys($ws);
-$activeFilterCount = count(array_diff_key($filters, ['q' => 1, 'status' => 1, 'field_value' => 1]));
+$tzCounts = lead_time_zone_counts($filters);
+[$whereNoTz, $paramsNoTz] = lead_filter_sql(array_diff_key($filters, ['tz' => 1]));
+$tzAll = (int) q_val("SELECT COUNT(*) FROM leads l WHERE $whereNoTz", $paramsNoTz);
+$activeFilterCount = count(array_diff_key($filters, ['q' => 1, 'status' => 1, 'tz' => 1, 'field_value' => 1]));
 $chipUrl = fn(?string $status) => url('leads/index.php', array_merge(array_diff_key($filters, ['status' => 1]), ['status' => $status, 'sort' => input('sort'), 'dir' => input('dir')]));
+$tzUrl = fn(?string $tz) => url('leads/index.php', array_merge(array_diff_key($filters, ['tz' => 1]), ['tz' => $tz, 'sort' => input('sort'), 'dir' => input('dir')]));
 
 $page_title = 'Leads';
 $active_nav = 'leads';
@@ -72,12 +76,27 @@ require __DIR__ . '/../includes/header.php';
     <?php if (!empty($statusCounts[''])): ?>
         <a href="<?= e($chipUrl('none')) ?>" class="rounded-full px-3 py-1 text-xs font-medium ring-1 <?= ($filters['status'] ?? '') === 'none' ? 'bg-slate-900 text-white ring-slate-900' : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50' ?>">No status <span class="opacity-70"><?= number_format($statusCounts['']) ?></span></a>
     <?php endif; ?>
+    <!-- Time zone (from the phones' area codes) with each zone's current local time and lead count -->
+    <label class="ml-auto inline-flex items-center gap-2 text-xs font-medium text-slate-500">
+        <?= icon('clock', 'h-4 w-4') ?><span class="sr-only">Time zone</span>
+        <select class="input !w-auto !py-1.5 text-xs <?= empty($filters['tz']) ? '' : '!border-indigo-500 !ring-1 !ring-indigo-500' ?>" onchange="location.href = this.value" aria-label="Time zone">
+            <option value="<?= e($tzUrl(null)) ?>">All time zones (<?= number_format($tzAll) ?>)</option>
+            <?php foreach (US_TIME_ZONES as $key => [$label]): $active = ($filters['tz'] ?? '') === $key;
+                if (!$tzCounts[$key] && !$active && !in_array($key, ['eastern', 'central', 'mountain', 'pacific'], true)) continue; ?>
+                <option value="<?= e($tzUrl($key)) ?>" <?= $active ? 'selected' : '' ?>><?= e($label) ?> · <?= e(us_zone_local_time($key)) ?> (<?= number_format($tzCounts[$key]) ?>)</option>
+            <?php endforeach; ?>
+            <?php if ($tzCounts['unknown'] || ($filters['tz'] ?? '') === 'unknown'): ?>
+                <option value="<?= e($tzUrl('unknown')) ?>" <?= ($filters['tz'] ?? '') === 'unknown' ? 'selected' : '' ?>>Unknown (<?= number_format($tzCounts['unknown']) ?>)</option>
+            <?php endif; ?>
+        </select>
+    </label>
 </div>
 
 <div class="card" x-data="bulkSelect(<?= $total ?>)">
     <!-- Filters -->
     <form method="get" class="border-b border-slate-200 p-4" x-data="{ more: <?= $activeFilterCount ? 'true' : 'false' ?> }">
         <?php if (!empty($filters['status'])): ?><input type="hidden" name="status" value="<?= e($filters['status']) ?>"><?php endif; ?>
+        <?php if (!empty($filters['tz'])): ?><input type="hidden" name="tz" value="<?= e($filters['tz']) ?>"><?php endif; ?>
         <div class="flex flex-col gap-3 sm:flex-row">
             <div class="relative flex-1">
                 <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400"><?= icon('search', 'h-4 w-4') ?></span>
@@ -221,6 +240,7 @@ require __DIR__ . '/../includes/header.php';
                         <?php endforeach; ?>
                         <?php if (count($lp) > 2): ?><a href="<?= e(url('leads/view.php', ['id' => $l['id']])) ?>" class="text-xs text-slate-400">+<?= count($lp) - 2 ?> more</a><?php endif; ?>
                         <?php if (!$lp): ?><span class="text-slate-400">—</span><?php endif; ?>
+                        <?php if ($lz = lead_time_zone($lp)): ?><span class="block text-xs text-slate-400" title="<?= e(US_TIME_ZONES[$lz][0]) ?> time"><?= e(US_TIME_ZONES[$lz][1]) ?> · <?= e(us_zone_local_time($lz)) ?></span><?php endif; ?>
                     </td>
                     <td class="max-w-[14rem] text-xs">
                         <?php if ($l['emails']): ?><span class="block truncate text-slate-600" title="<?= e($l['emails']) ?>"><?= e(explode('; ', $l['emails'])[0]) ?></span><?php endif; ?>
