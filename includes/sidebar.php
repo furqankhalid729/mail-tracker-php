@@ -8,6 +8,7 @@ $nav = [
     ['leads', 'Leads', 'leads/index.php', 'phone-out'],
     ['calls', 'Calls', 'calls/index.php', 'phone'],
     ['activity', 'Activity', 'activity/index.php', 'activity'],
+    ['reports', 'Reports', 'reports/index.php', 'chart'],
     ['templates', 'Templates', 'templates/index.php', 'template'],
     ['mail-accounts', 'Mail Accounts', 'mail-accounts/index.php', 'at'],
     ['tags', 'Tags', 'tags/index.php', 'tag'],
@@ -15,6 +16,9 @@ $nav = [
 ];
 if (!can_see_calls()) {
     $nav = array_values(array_filter($nav, fn($item) => $item[0] !== 'calls'));
+}
+if (!allowed('reports.view')) {
+    $nav = array_values(array_filter($nav, fn($item) => $item[0] !== 'reports'));
 }
 if (!can_see_leads()) {
     $nav = array_values(array_filter($nav, fn($item) => $item[0] !== 'leads'));

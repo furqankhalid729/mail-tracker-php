@@ -34,6 +34,7 @@ const PERMISSIONS = [
     'customers.delete' => 'manager',
     'tasks.manage_all' => 'manager',      // see every task, assign to anyone, edit/delete any task
     'team.view' => 'manager',             // team progress report
+    'reports.view' => 'owner',            // per-member reports: tasks and timeline, closers' emails and calls
     'members.manage' => 'admin',
     'settings.manage' => 'admin',
     'mail_accounts.manage' => 'admin',
