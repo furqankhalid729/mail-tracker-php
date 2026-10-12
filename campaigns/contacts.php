@@ -16,6 +16,7 @@ if (is_post()) {
     $action = (string) input('action');
     if ($action === 'add_filter') {
         $filters = customer_filters_from_request();
+        unset($filters['campaign_id'], $filters['not_in_campaign']);
         if (input('exclude_suppressed') === '1') {
             $filters['status'] = 'active';
         }

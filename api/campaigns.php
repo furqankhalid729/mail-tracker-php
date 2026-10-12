@@ -33,6 +33,8 @@ switch ((string) input('action', 'list')) {
     case 'preview':
         $campaign = find_or_404('campaigns', input_int('campaign_id'));
         $filters = customer_filters_from_request();
+        // campaign_id here names the target campaign, not an "already in campaign" audience filter
+        unset($filters['campaign_id'], $filters['not_in_campaign']);
         if (input('exclude_suppressed') === '1') {
             $filters['status'] = 'active';
         }
