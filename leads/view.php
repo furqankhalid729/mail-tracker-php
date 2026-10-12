@@ -36,6 +36,7 @@ require __DIR__ . '/../includes/header.php';
         <h1 class="page-title truncate"><?= e($lead['name']) ?></h1>
         <p class="page-subtitle">
             <?= lead_status_chip($lead['status_id'] ? (int) $lead['status_id'] : null) ?>
+            <?php if ($lead['follow_up_on']): ?><span class="ml-2"><?= lead_follow_up_badge($lead['follow_up_on'], 'text-sm') ?></span><?php endif; ?>
             <?php if ($lead['rating'] !== null): ?><span class="ml-2">★ <?= e($lead['rating']) ?><?= $lead['reviews_count'] !== null ? ' (' . number_format((int) $lead['reviews_count']) . ' reviews)' : '' ?></span><?php endif; ?>
             <?php if ($lead['source']): ?><span class="ml-2 text-slate-400">· <?= e($lead['source']) ?></span><?php endif; ?>
         </p>
@@ -136,16 +137,20 @@ require __DIR__ . '/../includes/header.php';
     </div>
 
     <div class="space-y-6">
-        <form method="post" action="<?= e(url('leads/actions.php')) ?>" class="card">
+        <form method="post" action="<?= e(url('leads/actions.php')) ?>" class="card" x-data="{ needsDate: <?= !empty($statuses[$lead['status_id']]['requires_date']) ? 'true' : 'false' ?> }">
             <?= csrf_field() ?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?= $id ?>">
             <div class="card-header"><h2 class="card-title">Update</h2></div>
             <div class="card-body space-y-3">
                 <div>
                     <label class="label" for="status_id">Status</label>
-                    <select class="input" id="status_id" name="status_id" required>
+                    <select class="input" id="status_id" name="status_id" required @change="needsDate = $event.target.selectedOptions[0].dataset.date === '1'">
                         <?php if (!$lead['status_id']): ?><option value="">Choose…</option><?php endif; ?>
-                        <?php foreach ($statuses as $sid => $s): ?><option value="<?= (int) $sid ?>" <?= (int) $lead['status_id'] === (int) $sid ? 'selected' : '' ?>><?= e($s['name']) ?></option><?php endforeach; ?>
+                        <?php foreach ($statuses as $sid => $s): ?><option value="<?= (int) $sid ?>" data-date="<?= $s['requires_date'] ? 1 : 0 ?>" <?= (int) $lead['status_id'] === (int) $sid ? 'selected' : '' ?>><?= e($s['name']) ?></option><?php endforeach; ?>
                     </select>
+                </div>
+                <div x-show="needsDate" x-cloak>
+                    <label class="label" for="follow_up_on">Date</label>
+                    <input type="date" class="input" id="follow_up_on" name="follow_up_on" value="<?= e($lead['follow_up_on'] && $lead['follow_up_on'] >= date('Y-m-d') ? $lead['follow_up_on'] : '') ?>" min="<?= date('Y-m-d') ?>" :required="needsDate" :disabled="!needsDate">
                 </div>
                 <div>
                     <label class="label" for="note">Note <span class="font-normal text-slate-400">(optional)</span></label>

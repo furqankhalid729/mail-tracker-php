@@ -9,9 +9,10 @@ declare(strict_types=1);
  *   - Statuses are defined per workspace by admins (lead_statuses); every status is a filter.
  */
 
+/** [name, color, requires_date] */
 const LEAD_DEFAULT_STATUSES = [
-    ['New', '#64748b'], ['No answer', '#f59e0b'], ['Callback', '#0ea5e9'],
-    ['Interested', '#6366f1'], ['Not interested', '#ef4444'], ['Won', '#10b981'],
+    ['New', '#64748b', 0], ['No answer', '#f59e0b', 0], ['Callback', '#0ea5e9', 1],
+    ['Interested', '#6366f1', 0], ['Not interested', '#ef4444', 0], ['Won', '#10b981', 0],
 ];
 
 /** Import / form targets. Several CSV columns may map to phones or emails; they are merged. */
@@ -41,8 +42,8 @@ function lead_statuses(int $wsId, bool $fresh = false): array
         $sql = 'SELECT * FROM lead_statuses WHERE workspace_id = ? ORDER BY sort_order, id';
         $rows = q_all($sql, [$wsId]);
         if (!$rows) {
-            foreach (LEAD_DEFAULT_STATUSES as $i => [$name, $color]) {
-                q('INSERT IGNORE INTO lead_statuses (workspace_id, name, color, sort_order, created_at) VALUES (?, ?, ?, ?, ?)', [$wsId, $name, $color, $i + 1, now()]);
+            foreach (LEAD_DEFAULT_STATUSES as $i => [$name, $color, $requiresDate]) {
+                q('INSERT IGNORE INTO lead_statuses (workspace_id, name, color, requires_date, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?)', [$wsId, $name, $color, $requiresDate, $i + 1, now()]);
             }
             $rows = q_all($sql, [$wsId]);
         }
@@ -62,6 +63,28 @@ function lead_status_chip(?int $statusId): string
 {
     $s = $statusId ? (lead_statuses(ws_id())[$statusId] ?? null) : null;
     return $s ? tag_chip($s) : '<span class="text-xs text-slate-400">No status</span>';
+}
+
+/** A Y-m-d date from a form field, or null when empty / invalid / in the past. */
+function lead_follow_up_from_input(mixed $value): ?string
+{
+    $d = DateTime::createFromFormat('!Y-m-d', trim((string) $value));
+    if (!$d || $d->format('Y-m-d') !== trim((string) $value)) {
+        return null;
+    }
+    return $d->format('Y-m-d') >= date('Y-m-d') ? $d->format('Y-m-d') : null;
+}
+
+/** Small "Oct 14" label for a lead's follow-up date; red once it is overdue. */
+function lead_follow_up_badge(?string $date, string $class = 'text-xs'): string
+{
+    if (!$date) {
+        return '';
+    }
+    $overdue = $date < date('Y-m-d');
+    $label = $date === date('Y-m-d') ? 'Today' : date(substr($date, 0, 4) === date('Y') ? 'M j' : 'M j, Y', strtotime($date));
+    return '<span class="inline-flex items-center gap-1 ' . $class . ' ' . ($overdue ? 'font-medium text-red-600' : 'text-slate-500') . '" title="Follow-up date' . ($overdue ? ' (overdue)' : '') . '">'
+        . icon('calendar', 'h-3.5 w-3.5') . e($label) . '</span>';
 }
 
 /* ---------------------------------------------------------------------------
@@ -437,21 +460,35 @@ function log_lead_activity(int $leadId, string $type, ?string $body = null, ?str
     ]);
 }
 
-/** Change a lead's status (and log it with an optional note). Returns false for an unknown status. */
-function lead_change_status(array $lead, int $statusId, string $note = ''): bool
+/**
+ * Change a lead's status (and log it with an optional note). Statuses with requires_date need a
+ * follow-up date ($followUpOn, Y-m-d, validated by lead_follow_up_from_input()); others clear it.
+ * Returns an error message, or null on success.
+ */
+function lead_change_status(array $lead, int $statusId, string $note = '', ?string $followUpOn = null): ?string
 {
     $statuses = lead_statuses(ws_id());
     if (!isset($statuses[$statusId])) {
-        return false;
+        return 'Choose a status.';
     }
-    if ((int) $lead['status_id'] !== $statusId) {
-        db_update('leads', ['status_id' => $statusId, 'updated_at' => now()], 'id = ? AND workspace_id = ?', [$lead['id'], ws_id()]);
+    $needsDate = !empty($statuses[$statusId]['requires_date']);
+    if ($needsDate && !$followUpOn) {
+        return 'Pick a date (today or later) for ' . $statuses[$statusId]['name'] . '.';
+    }
+    $followUpOn = $needsDate ? $followUpOn : null;
+    $statusChanged = (int) $lead['status_id'] !== $statusId;
+    $dateChanged = ($lead['follow_up_on'] ?? null) !== $followUpOn;
+    if ($statusChanged || $dateChanged) {
+        db_update('leads', ['status_id' => $statusId, 'follow_up_on' => $followUpOn, 'updated_at' => now()], 'id = ? AND workspace_id = ?', [$lead['id'], ws_id()]);
+    }
+    $body = trim(($followUpOn ? 'Date: ' . date('M j, Y', strtotime($followUpOn)) . "\n" : '') . $note);
+    if ($statusChanged || ($followUpOn && $dateChanged)) {
         $from = $lead['status_id'] ? ($statuses[$lead['status_id']]['name'] ?? null) : null;
-        log_lead_activity((int) $lead['id'], 'status', $note !== '' ? $note : null, $from, $statuses[$statusId]['name']);
+        log_lead_activity((int) $lead['id'], 'status', $body !== '' ? $body : null, $statusChanged ? $from : null, $statuses[$statusId]['name']);
     } elseif ($note !== '') {
         log_lead_activity((int) $lead['id'], 'note', $note);
     }
-    return true;
+    return null;
 }
 
 /** Assign (or unassign, $userId = null) many leads at once and log it on each. $where/$params select the leads (alias l). */

@@ -178,7 +178,7 @@ require __DIR__ . '/../includes/header.php';
     <!-- Bulk action bar -->
     <form method="post" action="<?= e(url('leads/actions.php')) ?>" x-show="count > 0" x-cloak
           class="flex flex-wrap items-center gap-2 border-b border-indigo-100 bg-indigo-50/60 px-4 py-2.5"
-          x-data="{ bulk: '' }"
+          x-data="{ bulk: '', bulkNeedsDate: false }"
           :data-confirm="bulk === 'delete' ? `Delete ${count.toLocaleString()} lead${count === 1 ? '' : 's'}? Their timelines are deleted too; Zoom calls stay in the call log.` : 'Apply this action to the selected leads?'"
           :data-confirm-title="bulk === 'delete' ? 'Delete leads?' : 'Are you sure?'"
           :data-confirm-button="bulk === 'delete' ? 'Delete' : 'Apply'"
@@ -197,9 +197,12 @@ require __DIR__ . '/../includes/header.php';
                 <option value="set_status">Set status</option>
                 <?php if ($manage): ?><option value="assign">Assign to</option><option value="delete">Delete</option><?php endif; ?>
             </select>
-            <select name="status_id" x-show="bulk === 'set_status'" class="input !w-auto !py-1.5">
-                <?php foreach ($statuses as $id => $s): ?><option value="<?= (int) $id ?>"><?= e($s['name']) ?></option><?php endforeach; ?>
+            <select name="status_id" x-show="bulk === 'set_status'" class="input !w-auto !py-1.5" @change="bulkNeedsDate = $event.target.selectedOptions[0].dataset.date === '1'" x-init="bulkNeedsDate = $el.selectedOptions[0]?.dataset.date === '1'">
+                <?php foreach ($statuses as $id => $s): ?><option value="<?= (int) $id ?>" data-date="<?= $s['requires_date'] ? 1 : 0 ?>"><?= e($s['name']) ?></option><?php endforeach; ?>
             </select>
+            <template x-if="bulk === 'set_status' && bulkNeedsDate">
+                <input type="date" name="follow_up_on" min="<?= date('Y-m-d') ?>" required class="input !w-auto !py-1.5" aria-label="Follow-up date">
+            </template>
             <?php if ($manage): ?>
                 <select name="user_id" x-show="bulk === 'assign'" class="input !w-auto !py-1.5">
                     <?php foreach ($members as $m): ?><option value="<?= (int) $m['id'] ?>"><?= e($m['name']) ?><?= $m['role'] === 'closer' ? '' : ' (' . e(role_label($m['role'])) . ')' ?></option><?php endforeach; ?>
@@ -248,13 +251,20 @@ require __DIR__ . '/../includes/header.php';
                         <?php if (!$l['emails'] && !$l['website']): ?><span class="text-slate-400">—</span><?php endif; ?>
                     </td>
                     <td>
-                        <form method="post" action="<?= e(url('leads/actions.php')) ?>">
+                        <form method="post" action="<?= e(url('leads/actions.php')) ?>" x-data="{ needsDate: false }">
                             <?= csrf_field() ?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?= (int) $l['id'] ?>">
-                            <select name="status_id" class="input !w-auto !py-1 !pl-2 text-xs" onchange="this.form.submit()" aria-label="Status"
+                            <select name="status_id" x-ref="status" class="input !w-auto !py-1 !pl-2 text-xs" aria-label="Status"
+                                    @change="needsDate = $event.target.selectedOptions[0].dataset.date === '1'; if (needsDate) $nextTick(() => { $refs.date.focus(); try { $refs.date.showPicker() } catch (e) {} }); else $el.form.submit()"
                                     style="border-left: 4px solid <?= e($statuses[$l['status_id']]['color'] ?? '#cbd5e1') ?>">
                                 <?php if (!$l['status_id']): ?><option value="">No status</option><?php endif; ?>
-                                <?php foreach ($statuses as $id => $s): ?><option value="<?= (int) $id ?>" <?= (int) $l['status_id'] === (int) $id ? 'selected' : '' ?>><?= e($s['name']) ?></option><?php endforeach; ?>
+                                <?php foreach ($statuses as $id => $s): ?><option value="<?= (int) $id ?>" data-date="<?= $s['requires_date'] ? 1 : 0 ?>" <?= (int) $l['status_id'] === (int) $id ? 'selected' : '' ?>><?= e($s['name']) ?></option><?php endforeach; ?>
                             </select>
+                            <div x-show="needsDate" x-cloak class="mt-1 flex items-center gap-1">
+                                <input type="date" name="follow_up_on" x-ref="date" min="<?= date('Y-m-d') ?>" :required="needsDate" :disabled="!needsDate" class="input !w-auto !py-1 !px-2 text-xs" aria-label="Follow-up date"
+                                       @change="if ($el.value && $el.checkValidity()) $el.form.submit()">
+                                <button type="button" class="btn-icon !px-1" aria-label="Cancel" @click="needsDate = false; $refs.status.value = '<?= (int) $l['status_id'] ?: '' ?>'">&times;</button>
+                            </div>
+                            <?php if ($l['follow_up_on']): ?><div class="mt-1" x-show="!needsDate"><?= lead_follow_up_badge($l['follow_up_on']) ?></div><?php endif; ?>
                         </form>
                     </td>
                     <td class="text-right tabular-nums">

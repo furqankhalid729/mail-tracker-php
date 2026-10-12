@@ -18,9 +18,19 @@ if (is_post()) {
     $data['source'] = ($s = trim((string) input('source'))) !== '' ? mb_substr($s, 0, 100) : null;
     $statusId = input_int('status_id');
     $data['status_id'] = isset($statuses[$statusId]) ? $statusId : null;
+    $needsDate = $data['status_id'] && !empty($statuses[$data['status_id']]['requires_date']);
+    $data['follow_up_on'] = $needsDate ? lead_follow_up_from_input(input('follow_up_on')) : null;
+    if ($needsDate && !$data['follow_up_on'] && $lead && (int) $lead['status_id'] === $data['status_id'] && (string) input('follow_up_on') === (string) $lead['follow_up_on']) {
+        $data['follow_up_on'] = $lead['follow_up_on']; // unchanged (possibly overdue) date on an otherwise-edited lead
+    }
     $assignee = input_int('assigned_to');
     $data['assigned_to'] = $assignee && is_workspace_user($assignee) ? $assignee : null;
 
+    if ($needsDate && !$data['follow_up_on']) {
+        keep_old_input();
+        flash_errors(['follow_up_on' => 'Pick a date (today or later) for ' . $statuses[$data['status_id']]['name'] . '.']);
+        redirect(url('leads/edit.php', ['id' => $lead['id'] ?? null]));
+    }
     if ($data['name'] === '') {
         keep_old_input();
         flash_errors(['name' => 'Enter a name, or at least a phone, email or website.']);
@@ -103,11 +113,17 @@ require __DIR__ . '/../includes/header.php';
             <label class="label" for="source">Source / list</label>
             <input class="input" id="source" name="source" value="<?= e($v('source')) ?>" maxlength="100">
         </div>
-        <div>
+        <?php $cur = (int) $v('status_id', lead_default_status_id($ws)); ?>
+        <div x-data="{ needsDate: <?= !empty($statuses[$cur]['requires_date']) ? 'true' : 'false' ?> }">
             <label class="label" for="status_id">Status</label>
-            <select class="input" id="status_id" name="status_id">
-                <?php $cur = (int) $v('status_id', lead_default_status_id($ws)); foreach ($statuses as $sid => $s): ?><option value="<?= (int) $sid ?>" <?= $cur === (int) $sid ? 'selected' : '' ?>><?= e($s['name']) ?></option><?php endforeach; ?>
+            <select class="input" id="status_id" name="status_id" @change="needsDate = $event.target.selectedOptions[0].dataset.date === '1'">
+                <?php foreach ($statuses as $sid => $s): ?><option value="<?= (int) $sid ?>" data-date="<?= $s['requires_date'] ? 1 : 0 ?>" <?= $cur === (int) $sid ? 'selected' : '' ?>><?= e($s['name']) ?></option><?php endforeach; ?>
             </select>
+            <div x-show="needsDate" x-cloak class="mt-2">
+                <label class="label" for="follow_up_on">Date</label>
+                <input type="date" class="input" id="follow_up_on" name="follow_up_on" value="<?= e($v('follow_up_on')) ?>" :required="needsDate" :disabled="!needsDate">
+                <?= field_error($errors, 'follow_up_on') ?>
+            </div>
         </div>
         <div>
             <label class="label" for="assigned_to">Assigned to</label>

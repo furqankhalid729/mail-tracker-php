@@ -1,13 +1,14 @@
 <?php
 /**
  * Lead state changes.
- *   status  id, status_id[, note]       anyone who can see the lead (closers on their own leads)
+ *   status  id, status_id[, note][, follow_up_on]   anyone who can see the lead (closers on their own leads);
+ *                                       follow_up_on (Y-m-d) is required for statuses with requires_date
  *   note    id, note
  *   email   id, email                   open the CRM email composer for one of the lead's emails
  *                                       (reuses the customer with that email, or creates one from the lead)
  *   assign  id, user_id (0 = unassign)  leads.manage
  *   delete  id                          leads.manage
- *   bulk    ids[] | all_matching + filters, bulk = set_status | assign | delete
+ *   bulk    ids[] | all_matching + filters, bulk = set_status [+ follow_up_on] | assign | delete
  */
 require_once __DIR__ . '/../includes/init.php';
 require_auth();
@@ -40,9 +41,15 @@ if ($action === 'bulk') {
             flash('error', 'Choose a status.');
             redirect_back('leads/index.php');
         }
+        $followUpOn = lead_follow_up_from_input(input('follow_up_on'));
+        if (!empty($statuses[$statusId]['requires_date']) && !$followUpOn) {
+            flash('error', 'Pick a date (today or later) for ' . $statuses[$statusId]['name'] . '.');
+            redirect_back('leads/index.php');
+        }
         $n = 0;
-        foreach (q_all("SELECT l.id, l.status_id FROM leads l WHERE $where AND NOT (l.status_id <=> ?)", [...$params, $statusId]) as $lead) {
-            lead_change_status($lead, $statusId);
+        $sameStatus = $followUpOn ? '' : ' AND NOT (l.status_id <=> ?)';
+        foreach (q_all("SELECT l.id, l.status_id, l.follow_up_on FROM leads l WHERE $where$sameStatus", $followUpOn ? $params : [...$params, $statusId]) as $lead) {
+            lead_change_status($lead, $statusId, '', $followUpOn);
             $n++;
         }
         flash('success', number_format($n) . ' lead' . ($n === 1 ? '' : 's') . ' set to ' . $statuses[$statusId]['name'] . '.');
@@ -72,8 +79,8 @@ $note = mb_substr(trim((string) input('note')), 0, 10000);
 
 switch ($action) {
     case 'status':
-        if (!lead_change_status($lead, input_int('status_id'), $note)) {
-            flash('error', 'Choose a status.');
+        if ($error = lead_change_status($lead, input_int('status_id'), $note, lead_follow_up_from_input(input('follow_up_on')))) {
+            flash('error', $error);
         } elseif (!is_ajax()) {
             flash('success', 'Status updated.');
         }
