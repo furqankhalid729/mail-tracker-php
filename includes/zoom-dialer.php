@@ -9,7 +9,7 @@ $zoomEmbedUrl = 'https://applications.zoom.us/integration/phone/embeddablephone/
 ?>
 <div x-data="zoomDialer(<?= e(json_encode($zoomEmbedUrl)) ?>)" @zoom-call.window="call($event.detail)" x-cloak
      class="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2">
-    <div x-show="open" x-transition.opacity class="w-[360px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-slate-900/10">
+    <div x-show="open" x-transition.opacity class="overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-slate-900/10" :style="{ width: Math.max(FRAME_W * scale, 280) + 'px' }">
         <div class="flex items-center gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2">
             <span class="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"><?= icon('phone', 'h-3.5 w-3.5') ?></span>
             <div class="min-w-0 flex-1">
@@ -19,11 +19,14 @@ $zoomEmbedUrl = 'https://applications.zoom.us/integration/phone/embeddablephone/
             <button type="button" x-show="number" class="btn-ghost btn-sm !px-2 text-xs" @click="dial(number)" title="Send the number to the dialer again (e.g. after signing in)">Dial again</button>
             <button type="button" class="btn-icon !p-1" @click="open = false" aria-label="Minimise"><?= icon('chevron-down', 'h-4 w-4') ?></button>
         </div>
-        <template x-if="src">
-            <iframe x-ref="frame" id="zoom-embeddable-phone-iframe" :src="src" @load="onLoad()"
-                    allow="clipboard-read; clipboard-write https://applications.zoom.us"
-                    class="block h-[600px] max-h-[calc(100vh-7rem)] w-full border-0" title="Zoom Phone"></iframe>
-        </template>
+        <!-- Zoom's dialer at its full size, scaled down as a whole when the window is too short to show all of it -->
+        <div class="mx-auto overflow-hidden" :style="`width: ${FRAME_W * scale}px; height: ${FRAME_H * scale}px`">
+            <template x-if="src">
+                <iframe id="zoom-embeddable-phone-iframe" :src="src" @load="onLoad()"
+                        allow="clipboard-read; clipboard-write https://applications.zoom.us" referrerpolicy="origin"
+                        class="block origin-top-left border-0" :style="`width: ${FRAME_W}px; height: ${FRAME_H}px; transform: scale(${scale})`" title="Zoom Phone"></iframe>
+            </template>
+        </div>
     </div>
     <button type="button" x-show="src && !open" @click="open = true"
             class="flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg hover:bg-emerald-700">
@@ -35,8 +38,17 @@ $zoomEmbedUrl = 'https://applications.zoom.us/integration/phone/embeddablephone/
         const ORIGIN = 'https://applications.zoom.us';
         const KEY = 'zoomDialerLoaded';
         return {
-            open: false, src: '', loaded: false, pending: null, number: '', label: '', inCall: false,
+            FRAME_W: 380, FRAME_H: 660, // Zoom's minimum is 350 × 580; this fits the keypad and call controls without scrolling
+            open: false, src: '', loaded: false, pending: null, number: '', label: '', inCall: false, scale: 1,
+            fit() {
+                // Room left for the iframe: window height minus the app's top bar (56), the panel header (52) and margins,
+                // so the whole panel stays below the top bar
+                const room = window.innerHeight - 56 - 52 - 32;
+                this.scale = Math.max(0.55, Math.min(1, room / this.FRAME_H, (window.innerWidth - 32) / this.FRAME_W));
+            },
             init() {
+                this.fit();
+                window.addEventListener('resize', () => this.fit());
                 try { if (sessionStorage.getItem(KEY)) this.src = embedUrl; } catch (e) {}
                 document.addEventListener('click', (ev) => {
                     const el = ev.target.closest('[data-zoom-call]');
