@@ -50,7 +50,7 @@ const PERMISSIONS = [
  */
 const CLOSER_PAGES = [
     'calls/index.php', 'calls/log.php',
-    'leads/index.php', 'leads/view.php', 'leads/actions.php',
+    'leads/index.php', 'leads/view.php', 'leads/actions.php', 'leads/pending.php',
     'inbox/',
     'customers/index.php', 'customers/view.php', 'customers/create.php', 'customers/edit.php', 'customers/email.php', 'customers/actions.php',
     'api/customers.php', 'api/search.php', 'api/kanban.php', 'api/tags.php',
