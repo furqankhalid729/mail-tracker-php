@@ -39,6 +39,15 @@ $zoomEmbedUrl = 'https://applications.zoom.us/integration/phone/embeddablephone/
     function zoomDialer(embedUrl) {
         const ORIGIN = 'https://applications.zoom.us';
         const KEY = 'zoomDialerLoaded';
+        // Debug log: everything sent to / received from Zoom is printed to the browser console as [ZoomDialer] …
+        // and kept in window.zoomDialerLog (type copy(zoomDialerLog) in the console to copy it).
+        window.zoomDialerLog = window.zoomDialerLog || [];
+        const log = (what, data) => {
+            const entry = { t: new Date().toISOString().slice(11, 23), what, data };
+            window.zoomDialerLog.push(entry);
+            if (window.zoomDialerLog.length > 200) window.zoomDialerLog.shift();
+            console.info('[ZoomDialer]', entry.t, what, data ?? '');
+        };
         return {
             FRAME_W: 380, FRAME_H: 660, // Zoom's minimum is 350 × 580; this fits the keypad and call controls without scrolling
             open: false, src: '', loaded: false, pending: null, number: '', label: '', inCall: false, scale: 1,
@@ -51,6 +60,7 @@ $zoomEmbedUrl = 'https://applications.zoom.us/integration/phone/embeddablephone/
             init() {
                 this.fit();
                 window.addEventListener('resize', () => this.fit());
+                log('init', { page: location.origin, embedUrl, restored: (() => { try { return !!sessionStorage.getItem(KEY); } catch (e) { return 'n/a'; } })() });
                 try { if (sessionStorage.getItem(KEY)) this.src = embedUrl; } catch (e) {}
                 document.addEventListener('click', (ev) => {
                     const el = ev.target.closest('[data-zoom-call]');
@@ -59,7 +69,9 @@ $zoomEmbedUrl = 'https://applications.zoom.us/integration/phone/embeddablephone/
                     this.call({ number: el.dataset.zoomCall, label: el.dataset.zoomCallLabel || '' });
                 });
                 window.addEventListener('message', (ev) => {
-                    if (ev.origin !== ORIGIN || !ev.data || typeof ev.data.type !== 'string') return;
+                    if (ev.origin !== ORIGIN) return;
+                    log('← from Zoom: ' + (ev.data?.type ?? typeof ev.data), ev.data);
+                    if (!ev.data || typeof ev.data.type !== 'string') return;
                     if (ev.data.type === 'zp-call-connected-event') { this.inCall = true; }
                     if (ev.data.type === 'zp-call-ended-event') {
                         this.inCall = false;
@@ -70,12 +82,14 @@ $zoomEmbedUrl = 'https://applications.zoom.us/integration/phone/embeddablephone/
             },
             onLoad() {
                 this.loaded = true;
+                log('iframe loaded', { pending: this.pending });
                 try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
                 // Zoom's app needs a moment after the iframe's load event before it listens for messages
                 if (this.pending) setTimeout(() => this.dial(this.pending), 1500);
             },
             call({ number, label }) {
                 if (!number) return;
+                log('call button clicked', { number, label, iframeLoaded: this.loaded });
                 this.number = number;
                 this.label = label;
                 this.open = true;
@@ -89,8 +103,10 @@ $zoomEmbedUrl = 'https://applications.zoom.us/integration/phone/embeddablephone/
             dial(number) {
                 this.pending = null;
                 const frame = document.getElementById('zoom-embeddable-phone-iframe');
-                if (!frame || !this.loaded) { this.pending = number; return; }
-                frame.contentWindow.postMessage({ type: 'zp-make-call', data: { number, autoDial: true } }, ORIGIN);
+                if (!frame || !this.loaded) { this.pending = number; log('dial queued (iframe not loaded yet)', { number }); return; }
+                const msg = { type: 'zp-make-call', data: { number, autoDial: true } };
+                frame.contentWindow.postMessage(msg, ORIGIN);
+                log('→ to Zoom', msg);
             },
         };
     }
