@@ -17,8 +17,10 @@ $zoomEmbedUrl = 'https://applications.zoom.us/integration/phone/embeddablephone/
                 <div class="truncate text-[11px] text-slate-500" x-text="label ? `${label} · ${number}` : (number || 'Sign in, then click a call button')"></div>
             </div>
             <button type="button" x-show="number" class="btn-ghost btn-sm !px-2 text-xs" @click="dial(number)" title="Send the number to the dialer again (e.g. after signing in)">Dial again</button>
+            <a x-show="number" :href="`zoomphonecall://${number}`" class="btn-ghost btn-sm !px-2 text-xs" title="Call this number directly in the Zoom desktop app (use this if the call here has no sound)">Zoom app</a>
             <button type="button" class="btn-icon !p-1" @click="open = false" aria-label="Minimise"><?= icon('chevron-down', 'h-4 w-4') ?></button>
         </div>
+        <p class="border-b border-slate-100 bg-amber-50 px-3 py-1 text-[11px] text-amber-800">Sound plays through the Zoom desktop app. Keep it open and signed in as the same user.</p>
         <!-- Zoom's dialer at its full size, scaled down as a whole when the window is too short to show all of it -->
         <div class="mx-auto overflow-hidden" :style="`width: ${FRAME_W * scale}px; height: ${FRAME_H * scale}px`">
             <template x-if="src">
@@ -41,9 +43,9 @@ $zoomEmbedUrl = 'https://applications.zoom.us/integration/phone/embeddablephone/
             FRAME_W: 380, FRAME_H: 660, // Zoom's minimum is 350 × 580; this fits the keypad and call controls without scrolling
             open: false, src: '', loaded: false, pending: null, number: '', label: '', inCall: false, scale: 1,
             fit() {
-                // Room left for the iframe: window height minus the app's top bar (56), the panel header (52) and margins,
+                // Room left for the iframe: window height minus the app's top bar (56), the panel header + audio note (52 + 22) and margins,
                 // so the whole panel stays below the top bar
-                const room = window.innerHeight - 56 - 52 - 32;
+                const room = window.innerHeight - 56 - 74 - 32;
                 this.scale = Math.max(0.55, Math.min(1, room / this.FRAME_H, (window.innerWidth - 32) / this.FRAME_W));
             },
             init() {
