@@ -58,6 +58,7 @@ require __DIR__ . '/../includes/header.php';
     </div>
     <?php if ($manage): ?>
         <div class="flex flex-wrap gap-2">
+            <a href="<?= e(url('leads/pending.php')) ?>" class="btn-secondary"><?= icon('calendar', 'h-4 w-4') ?> Pending tasks</a>
             <a href="<?= e(url('leads/statuses.php')) ?>" class="btn-secondary"><?= icon('tag', 'h-4 w-4') ?> Statuses</a>
             <a href="<?= e(url('leads/import.php')) ?>" class="btn-secondary"><?= icon('upload', 'h-4 w-4') ?> Import CSV</a>
             <a href="<?= e(url('leads/edit.php')) ?>" class="btn-primary"><?= icon('plus', 'h-4 w-4') ?> Add lead</a>
@@ -251,21 +252,7 @@ require __DIR__ . '/../includes/header.php';
                         <?php if (!$l['emails'] && !$l['website']): ?><span class="text-slate-400">—</span><?php endif; ?>
                     </td>
                     <td>
-                        <form method="post" action="<?= e(url('leads/actions.php')) ?>" x-data="{ needsDate: false }">
-                            <?= csrf_field() ?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?= (int) $l['id'] ?>">
-                            <select name="status_id" x-ref="status" class="input !w-auto !py-1 !pl-2 text-xs" aria-label="Status"
-                                    @change="needsDate = $event.target.selectedOptions[0].dataset.date === '1'; if (needsDate) $nextTick(() => { $refs.date.focus(); try { $refs.date.showPicker() } catch (e) {} }); else $el.form.submit()"
-                                    style="border-left: 4px solid <?= e($statuses[$l['status_id']]['color'] ?? '#cbd5e1') ?>">
-                                <?php if (!$l['status_id']): ?><option value="">No status</option><?php endif; ?>
-                                <?php foreach ($statuses as $id => $s): ?><option value="<?= (int) $id ?>" data-date="<?= $s['requires_date'] ? 1 : 0 ?>" <?= (int) $l['status_id'] === (int) $id ? 'selected' : '' ?>><?= e($s['name']) ?></option><?php endforeach; ?>
-                            </select>
-                            <div x-show="needsDate" x-cloak class="mt-1 flex items-center gap-1">
-                                <input type="date" name="follow_up_on" x-ref="date" min="<?= date('Y-m-d') ?>" :required="needsDate" :disabled="!needsDate" class="input !w-auto !py-1 !px-2 text-xs" aria-label="Follow-up date"
-                                       @change="if ($el.value && $el.checkValidity()) $el.form.submit()">
-                                <button type="button" class="btn-icon !px-1" aria-label="Cancel" @click="needsDate = false; $refs.status.value = '<?= (int) $l['status_id'] ?: '' ?>'">&times;</button>
-                            </div>
-                            <?php if ($l['follow_up_on']): ?><div class="mt-1" x-show="!needsDate"><?= lead_follow_up_badge($l['follow_up_on']) ?></div><?php endif; ?>
-                        </form>
+                        <?php require __DIR__ . '/_status_form.php'; ?>
                     </td>
                     <td class="text-right tabular-nums">
                         <span class="font-medium text-slate-900"><?= number_format((int) $l['total_attempts']) ?></span>

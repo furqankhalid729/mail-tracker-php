@@ -1,7 +1,7 @@
 <?php
 /**
  * Admins define the lead statuses closers can set. Each one automatically becomes a filter on the leads list.
- *   POST action=save    [id], name, color[, requires_date] (closers must pick a date when they set it)
+ *   POST action=save    [id], name, color[, requires_date] (closers must pick a date when they set it)[, in_pending] (listed on Pending tasks)
  *   POST action=move    id, dir = up | down
  *   POST action=delete  id, move_to (status that its leads get)
  */
@@ -24,6 +24,7 @@ if (is_post()) {
         $name = mb_substr(trim((string) input('name')), 0, 80);
         $color = preg_match('/^#[0-9a-fA-F]{6}$/', (string) input('color')) ? (string) input('color') : '#64748b';
         $requiresDate = input('requires_date') ? 1 : 0;
+        $inPending = input('in_pending') ? 1 : 0;
         $taken = q_val('SELECT id FROM lead_statuses WHERE workspace_id = ? AND name = ? AND id <> ?', [$ws, $name, $id]);
         if ($name === '' || $taken) {
             keep_old_input();
@@ -31,11 +32,11 @@ if (is_post()) {
             redirect(url($self, ['edit' => $id ?: null]));
         }
         if ($id) {
-            db_update('lead_statuses', ['name' => $name, 'color' => $color, 'requires_date' => $requiresDate], 'id = ? AND workspace_id = ?', [$id, $ws]);
+            db_update('lead_statuses', ['name' => $name, 'color' => $color, 'requires_date' => $requiresDate, 'in_pending' => $inPending], 'id = ? AND workspace_id = ?', [$id, $ws]);
             flash('success', 'Status saved.');
         } else {
             $order = (int) q_val('SELECT COALESCE(MAX(sort_order), 0) + 1 FROM lead_statuses WHERE workspace_id = ?', [$ws]);
-            db_insert('lead_statuses', ['workspace_id' => $ws, 'name' => $name, 'color' => $color, 'requires_date' => $requiresDate, 'sort_order' => $order, 'created_at' => now()]);
+            db_insert('lead_statuses', ['workspace_id' => $ws, 'name' => $name, 'color' => $color, 'requires_date' => $requiresDate, 'in_pending' => $inPending, 'sort_order' => $order, 'created_at' => now()]);
             flash('success', 'Status added. It now appears as a filter on the leads list.');
         }
         clear_old_input();
@@ -109,7 +110,7 @@ require __DIR__ . '/../includes/header.php';
                             </form>
                         <?php endforeach; ?>
                     </td>
-                    <td><?= tag_chip($s) ?><?= $s['requires_date'] ? ' <span class="ml-1 inline-flex items-center gap-1 text-xs text-slate-500" title="Closers must pick a date">' . icon('calendar', 'h-3.5 w-3.5') . 'date required</span>' : '' ?><?= $i === 1 ? ' <span class="ml-1 text-xs text-slate-400">default for new leads</span>' : '' ?></td>
+                    <td><?= tag_chip($s) ?><?= $s['requires_date'] ? ' <span class="ml-1 inline-flex items-center gap-1 text-xs text-slate-500" title="Closers must pick a date">' . icon('calendar', 'h-3.5 w-3.5') . 'date required</span>' : '' ?><?= $s['in_pending'] ? ' <span class="ml-1 inline-flex items-center gap-1 text-xs text-slate-500" title="Listed on Pending tasks">' . icon('clock', 'h-3.5 w-3.5') . 'pending task</span>' : '' ?><?= $i === 1 ? ' <span class="ml-1 text-xs text-slate-400">default for new leads</span>' : '' ?></td>
                     <td class="text-right"><a class="font-medium text-indigo-600 hover:underline" href="<?= e(url('leads/index.php', ['status' => $sid])) ?>"><?= number_format($leadCount) ?></a></td>
                     <td class="whitespace-nowrap text-right">
                         <a href="<?= e(url($self, ['edit' => $sid])) ?>" class="btn-icon" aria-label="Edit"><?= icon('pencil', 'h-4 w-4') ?></a>
@@ -165,6 +166,10 @@ require __DIR__ . '/../includes/header.php';
             <label class="flex items-start gap-2 text-sm">
                 <input type="checkbox" name="requires_date" value="1" class="checkbox mt-0.5" <?= old('requires_date', $editing['requires_date'] ?? 0) ? 'checked' : '' ?>>
                 <span><span class="font-medium text-slate-700">Requires a date</span><span class="block text-xs text-slate-500">Closers must pick a date (e.g. when to call back) when they set this status.</span></span>
+            </label>
+            <label class="flex items-start gap-2 text-sm">
+                <input type="checkbox" name="in_pending" value="1" class="checkbox mt-0.5" <?= old('in_pending', $editing['in_pending'] ?? 0) ? 'checked' : '' ?>>
+                <span><span class="font-medium text-slate-700">Show on Pending tasks</span><span class="block text-xs text-slate-500">Leads with this status are listed on Leads → Pending tasks as a reminder.</span></span>
             </label>
             <div class="flex items-center justify-between">
                 <span class="tag-chip" :style="`--tag: ${color}`" x-text="name || 'Preview'"></span>

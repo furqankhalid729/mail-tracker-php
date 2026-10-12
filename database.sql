@@ -437,6 +437,7 @@ CREATE TABLE IF NOT EXISTS lead_statuses (
     name VARCHAR(80) NOT NULL,
     color VARCHAR(20) NOT NULL DEFAULT '#64748b',
     requires_date TINYINT(1) NOT NULL DEFAULT 0,
+    in_pending TINYINT(1) NOT NULL DEFAULT 0,
     sort_order INT NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL,
     UNIQUE KEY uq_lead_status_name (workspace_id, name),

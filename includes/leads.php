@@ -9,10 +9,10 @@ declare(strict_types=1);
  *   - Statuses are defined per workspace by admins (lead_statuses); every status is a filter.
  */
 
-/** [name, color, requires_date] */
+/** [name, color, requires_date, in_pending] */
 const LEAD_DEFAULT_STATUSES = [
-    ['New', '#64748b', 0], ['No answer', '#f59e0b', 0], ['Callback', '#0ea5e9', 1],
-    ['Interested', '#6366f1', 0], ['Not interested', '#ef4444', 0], ['Won', '#10b981', 0],
+    ['New', '#64748b', 0, 0], ['No answer', '#f59e0b', 0, 0], ['Callback', '#0ea5e9', 1, 1],
+    ['Interested', '#6366f1', 0, 1], ['Not interested', '#ef4444', 0, 0], ['Won', '#10b981', 0, 0],
 ];
 
 /** Import / form targets. Several CSV columns may map to phones or emails; they are merged. */
@@ -42,8 +42,8 @@ function lead_statuses(int $wsId, bool $fresh = false): array
         $sql = 'SELECT * FROM lead_statuses WHERE workspace_id = ? ORDER BY sort_order, id';
         $rows = q_all($sql, [$wsId]);
         if (!$rows) {
-            foreach (LEAD_DEFAULT_STATUSES as $i => [$name, $color, $requiresDate]) {
-                q('INSERT IGNORE INTO lead_statuses (workspace_id, name, color, requires_date, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?)', [$wsId, $name, $color, $requiresDate, $i + 1, now()]);
+            foreach (LEAD_DEFAULT_STATUSES as $i => [$name, $color, $requiresDate, $inPending]) {
+                q('INSERT IGNORE INTO lead_statuses (workspace_id, name, color, requires_date, in_pending, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', [$wsId, $name, $color, $requiresDate, $inPending, $i + 1, now()]);
             }
             $rows = q_all($sql, [$wsId]);
         }
@@ -63,6 +63,25 @@ function lead_status_chip(?int $statusId): string
 {
     $s = $statusId ? (lead_statuses(ws_id())[$statusId] ?? null) : null;
     return $s ? tag_chip($s) : '<span class="text-xs text-slate-400">No status</span>';
+}
+
+/** Statuses whose leads are listed on Leads → Pending tasks, keyed by id. */
+function lead_pending_statuses(int $wsId): array
+{
+    return array_filter(lead_statuses($wsId), fn($s) => !empty($s['in_pending']));
+}
+
+/** Pending-task leads due today or overdue for the signed-in user (assigned to them), for the sidebar badge. */
+function lead_pending_due_count(): int
+{
+    $ids = array_keys(lead_pending_statuses(ws_id()));
+    if (!$ids) {
+        return 0;
+    }
+    return (int) q_val(
+        'SELECT COUNT(*) FROM leads WHERE workspace_id = ? AND assigned_to = ? AND follow_up_on <= ? AND status_id IN (' . placeholders($ids) . ')',
+        [ws_id(), user_id(), date('Y-m-d'), ...$ids]
+    );
 }
 
 /** A Y-m-d date from a form field, or null when empty / invalid / in the past. */
