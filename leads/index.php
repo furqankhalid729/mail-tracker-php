@@ -240,7 +240,7 @@ require __DIR__ . '/../includes/header.php';
                     </td>
                     <td class="whitespace-nowrap text-sm">
                         <?php if ($ph = $lp[0] ?? null): ?>
-                            <button type="button" data-copy="<?= e($ph['phone_number']) ?>" title="Copy number" class="block tabular-nums text-slate-700 hover:text-indigo-600"><?= e($ph['phone_number']) ?></button>
+                            <span class="flex items-center gap-1"><button type="button" data-copy="<?= e($ph['phone_number']) ?>" title="Copy number" class="tabular-nums text-slate-700 hover:text-indigo-600"><?= e($ph['phone_number']) ?></button><?= zoom_call_button($ph['phone_number'], $l['name']) ?></span>
                         <?php endif; ?>
                         <?php if (count($lp) > 1): ?><a href="<?= e(url('leads/view.php', ['id' => $l['id']])) ?>" class="text-xs text-slate-400">+<?= count($lp) - 1 ?> more</a><?php endif; ?>
                         <?php if (!$lp): ?><span class="text-slate-400">—</span><?php endif; ?>

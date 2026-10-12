@@ -128,6 +128,38 @@ function number_key(?string $number): ?string
     return strlen($digits) > 10 ? substr($digits, -10) : $digits;
 }
 
+/** A number Zoom can dial: E.164 for US/Canada numbers ("(754) 610-5467" → "+17546105467"), else as typed. */
+function zoom_dial_number(string $phone): string
+{
+    $digits = preg_replace('/\D+/', '', $phone);
+    if (strlen($digits) === 10) {
+        return '+1' . $digits;
+    }
+    if (strlen($digits) === 11 && $digits[0] === '1') {
+        return '+' . $digits;
+    }
+    return str_starts_with(trim($phone), '+') ? '+' . $digits : $digits;
+}
+
+/**
+ * Small "Call" button for a phone number. With ZOOM_SMART_EMBED it dials through the embedded Zoom Phone
+ * dialer (includes/zoom-dialer.php); otherwise, when Zoom is connected, it opens the Zoom desktop app.
+ */
+function zoom_call_button(string $phone, string $label = ''): string
+{
+    $number = zoom_dial_number($phone);
+    if ($number === '' || (!ZOOM_SMART_EMBED && !zoom_enabled())) {
+        return '';
+    }
+    $class = 'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700';
+    $title = 'Call ' . $phone . ' with Zoom';
+    if (ZOOM_SMART_EMBED) {
+        return '<button type="button" class="' . $class . '" data-zoom-call="' . e($number) . '" data-zoom-call-label="' . e($label) . '" title="' . e($title) . '" aria-label="' . e($title) . '">'
+            . icon('phone', 'h-3.5 w-3.5') . '</button>';
+    }
+    return '<a class="' . $class . '" href="zoomphonecall://' . e($number) . '" title="' . e($title) . '" aria-label="' . e($title) . '">' . icon('phone', 'h-3.5 w-3.5') . '</a>';
+}
+
 /** Zoom timestamps are UTC ISO-8601; store them in the app timezone like the rest of the app. */
 function zoom_parse_time(?string $value): ?string
 {

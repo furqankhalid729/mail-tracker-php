@@ -132,6 +132,15 @@ Every request is checked against the `x-zm-signature` HMAC. Each outbound call i
 
 **Calls → Zoom** shows whether events are arriving.
 
+**Click-to-call (optional).** A green phone button sits next to each lead's numbers on Leads, Pending tasks and the lead page. Clicking the number itself still copies it.
+- **With Zoom connected:** the button opens the number in the Zoom desktop app (`zoomphonecall://`).
+- **To dial inside the CRM:** use the Zoom Phone Smart Embed dialer.
+  1. A Zoom admin installs **Zoom Phone Smart Embed** from the Zoom App Marketplace.
+  2. In that app's settings, they add `https://yourdomain.com` to the approved domains.
+  3. Set `ZOOM_SMART_EMBED=1` in `.env`.
+
+  The button then opens a floating Zoom Phone panel and dials the lead. Callers sign in to the panel once per browser tab. Each caller needs a Zoom Phone licence and the Zoom desktop app signed in, because the desktop app carries the audio. The calls sync into the lead's call history like any other Zoom call.
+
 ## Call leads
 Lists of businesses for closers to phone, such as Google Maps exports or Website / Email / Phones sheets.
 - **Import** (admins): *Leads → Import CSV*. Columns are matched automatically and you can change the mapping. Several columns can go to *Phone(s)* or *Email(s)*, and a cell can hold several values separated by `;`. Google redirect links (`google.com/url?q=…`) are unwrapped to the real website. Columns you don't map are kept as extra fields and can be filtered with *Other column contains*. You can assign the whole file to one person and give it a starting status. A row is skipped as a duplicate when one of its phone numbers already belongs to a lead.

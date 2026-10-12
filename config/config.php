@@ -73,6 +73,8 @@ define('ZOOM_CLIENT_ID', (string) env('ZOOM_CLIENT_ID', ''));
 define('ZOOM_CLIENT_SECRET', (string) env('ZOOM_CLIENT_SECRET', ''));
 // Secret Token from the Zoom app's Event Subscriptions page; enables /webhooks/zoom.php (who ended each call)
 define('ZOOM_WEBHOOK_SECRET', (string) env('ZOOM_WEBHOOK_SECRET', ''));
+// Click-to-call through the Zoom Phone Smart Embed dialer (needs the Smart Embed app + this domain approved in Zoom)
+define('ZOOM_SMART_EMBED', (bool) env('ZOOM_SMART_EMBED', false));
 // Overridable only for testing against a mock server
 define('ZOOM_OAUTH_BASE', rtrim((string) env('ZOOM_OAUTH_BASE', 'https://zoom.us'), '/'));
 define('ZOOM_API_BASE', rtrim((string) env('ZOOM_API_BASE', 'https://api.zoom.us/v2'), '/'));

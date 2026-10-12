@@ -199,7 +199,7 @@ require __DIR__ . '/../includes/header.php';
                     </td>
                     <td class="whitespace-nowrap text-sm">
                         <?php if ($ph = $lp[0] ?? null): ?>
-                            <button type="button" data-copy="<?= e($ph['phone_number']) ?>" title="Copy number" class="block tabular-nums text-slate-700 hover:text-indigo-600"><?= e($ph['phone_number']) ?></button>
+                            <span class="flex items-center gap-1"><button type="button" data-copy="<?= e($ph['phone_number']) ?>" title="Copy number" class="tabular-nums text-slate-700 hover:text-indigo-600"><?= e($ph['phone_number']) ?></button><?= zoom_call_button($ph['phone_number'], $l['name']) ?></span>
                         <?php else: ?><span class="text-slate-400">—</span><?php endif; ?>
                         <?php if ($lz = lead_time_zone($lp)): ?><span class="block text-xs text-slate-400" title="<?= e(US_TIME_ZONES[$lz][0]) ?> time"><?= e(US_TIME_ZONES[$lz][1]) ?> · <?= e(us_zone_local_time($lz)) ?></span><?php endif; ?>
                     </td>

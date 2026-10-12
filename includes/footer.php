@@ -60,6 +60,7 @@
 <script>
     window.__flashes = <?= json_encode(get_flashes(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 </script>
+<?php if (ZOOM_SMART_EMBED && can_see_leads()) require __DIR__ . '/zoom-dialer.php'; ?>
 <?= $extra_scripts ?? '' ?>
 </body>
 </html>
