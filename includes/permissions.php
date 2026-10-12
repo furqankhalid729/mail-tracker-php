@@ -49,7 +49,7 @@ const PERMISSIONS = [
  * Change this list to widen or narrow what a Closer can open.
  */
 const CLOSER_PAGES = [
-    'calls/index.php', 'calls/log.php',
+    'calls/index.php', 'calls/log.php', 'calls/recording.php',
     'leads/index.php', 'leads/view.php', 'leads/actions.php', 'leads/pending.php',
     'inbox/',
     'customers/index.php', 'customers/view.php', 'customers/create.php', 'customers/edit.php', 'customers/email.php', 'customers/actions.php',

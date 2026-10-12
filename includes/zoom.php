@@ -12,6 +12,8 @@ declare(strict_types=1);
  */
 
 const ZOOM_SCOPES_NEEDED = 'phone:read:list_call_logs:admin';
+// Optional, for playing call recordings: list recordings + read/download one
+const ZOOM_RECORDING_SCOPES = 'phone:read:list_recordings:admin, phone:read:call_recording:admin';
 const ZOOM_BACKFILL_DAYS = 90;        // history fetched on first sync
 const ZOOM_WINDOW_DAYS = 30;          // max date range per request
 const ZOOM_OVERLAP_DAYS = 2;          // re-read recent days: Zoom can add records late
@@ -267,7 +269,7 @@ function zoom_sync(int $wsId, int $budget = 40): array
         }
 
         $today = date('Y-m-d');
-        $from = $conn['synced_until']
+        $syncFrom = $from = $conn['synced_until']
             ? date('Y-m-d', strtotime($conn['synced_until'] . ' -' . ZOOM_OVERLAP_DAYS . ' days'))
             : date('Y-m-d', strtotime('-' . ZOOM_BACKFILL_DAYS . ' days'));
 
@@ -297,6 +299,7 @@ function zoom_sync(int $wsId, int $budget = 40): array
             $from = date('Y-m-d', strtotime($to . ' +1 day'));
         }
 
+        $stats['recordings'] = zoom_sync_recordings($wsId, $conn, $syncFrom, $from > $today ? $today : date('Y-m-d', strtotime($from . ' -1 day')), $started, $budget + 30);
         zoom_reattribute($wsId);
         leads_link_calls($wsId);
         zoom_resolve_hangups($wsId); // webhooks often arrive before the call shows up in call history
@@ -308,6 +311,64 @@ function zoom_sync(int $wsId, int $budget = 40): array
     } finally {
         q('SELECT RELEASE_LOCK(?)', [$lock]);
     }
+}
+
+/**
+ * Attach Zoom Phone recordings (GET /phone/recordings) to the calls synced from $from to $to, matched by call_id.
+ * Only Zoom's reference (id + download_url) is stored; calls/recording.php streams the audio from Zoom on Play.
+ * Needs ZOOM_RECORDING_SCOPES; without them calls still sync and the reason is kept in zoom_connections.recordings_error.
+ * Returns how many calls got a recording.
+ */
+function zoom_sync_recordings(int $wsId, array &$conn, string $from, string $to, int $started, int $budget): int
+{
+    if ($to < $from) {
+        return 0;
+    }
+    $n = 0;
+    try {
+        for ($start = $from; $start <= $to && time() - $started < $budget; $start = date('Y-m-d', strtotime($end . ' +1 day'))) {
+            $end = min($to, date('Y-m-d', strtotime($start . ' +' . (ZOOM_WINDOW_DAYS - 1) . ' days')));
+            $pageToken = '';
+            do {
+                $query = ['from' => $start, 'to' => $end, 'page_size' => 300] + ($pageToken !== '' ? ['next_page_token' => $pageToken] : []);
+                $page = zoom_api($conn, '/phone/recordings', $query);
+                foreach ($page['recordings'] ?? [] as $r) {
+                    $callId = (string) ($r['call_id'] ?? '');
+                    $url = (string) ($r['download_url'] ?? '');
+                    if ($callId === '' || !str_starts_with($url, 'https://')) {
+                        continue;
+                    }
+                    $n += q(
+                        'UPDATE zoom_calls SET recording_id = ?, recording_url = ?, recording_duration = ? WHERE workspace_id = ? AND call_id = ?',
+                        [mb_substr((string) ($r['id'] ?? ''), 0, 100) ?: null, mb_substr($url, 0, 500), isset($r['duration']) ? max(0, (int) $r['duration']) : null, $wsId, mb_substr($callId, 0, 64)]
+                    )->rowCount() > 0 ? 1 : 0;
+                }
+                $pageToken = (string) ($page['next_page_token'] ?? '');
+            } while ($pageToken !== '' && time() - $started < $budget);
+        }
+        q('UPDATE zoom_connections SET recordings_error = NULL WHERE id = ?', [$conn['id']]);
+    } catch (Throwable $e) {
+        $msg = $e->getMessage();
+        if (preg_match('/scope|HTTP 40[13]/i', $msg)) {
+            $msg = 'Recordings are not readable yet: add the scopes ' . ZOOM_RECORDING_SCOPES . ' to the Zoom app, then reconnect Zoom. (' . $msg . ')';
+        }
+        q('UPDATE zoom_connections SET recordings_error = ? WHERE id = ?', [mb_substr($msg, 0, 500), $conn['id']]);
+    }
+    return $n;
+}
+
+/** Inline "Play recording" control for a call row ('' when the call has no recording). */
+function call_recording_player(array $call): string
+{
+    if (empty($call['recording_url'])) {
+        return '';
+    }
+    $src = e(url('calls/recording.php', ['id' => $call['id']]));
+    return '<div x-data="{ on: false }" class="mt-1 flex justify-end">'
+        . '<button type="button" x-show="!on" @click="on = true" class="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100" title="Play the Zoom recording">'
+        . icon('play', 'h-3 w-3') . 'Play</button>'
+        . '<template x-if="on"><audio controls autoplay preload="none" src="' . $src . '" class="h-8 w-60 max-w-full"></audio></template>'
+        . '</div>';
 }
 
 /* ---------------------------------------------------------------------------

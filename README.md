@@ -70,7 +70,7 @@ A lightweight email CRM and campaign manager that runs on ordinary shared hostin
 - `ALLOW_REGISTRATION=false` once your team has accounts. Add teammates in *Settings → Members*.
 
 ### Upgrading an existing install
-Import the files in `migrations/` once each, in order (phpMyAdmin → *Import*): `001_roles_and_tasks.sql`, then `002_closers_and_zoom.sql`, then `003_call_leads.sql`, then `004_zoom_hangup.sql`, then `005_lead_follow_up_dates.sql`. Each is safe to run again. Fresh installs get these from `database.sql`.
+Import the files in `migrations/` once each, in order (phpMyAdmin → *Import*): `001_roles_and_tasks.sql`, then `002_closers_and_zoom.sql`, then `003_call_leads.sql`, then `004_zoom_hangup.sql`, then `005_lead_follow_up_dates.sql`, then `006_call_recordings.sql`. Each is safe to run again. Fresh installs get these from `database.sql`.
 
 ---
 
@@ -131,6 +131,12 @@ Every request is checked against the `x-zm-signature` HMAC. Each outbound call i
 - **Unknown:** everything else. That covers inbound calls, unanswered calls nobody cancelled, transfers (several `caller_ended` events), and calls from before the webhook was set up.
 
 **Calls → Zoom** shows whether events are arriving.
+
+**Call recordings (optional).** Each sync also reads Zoom Phone's recording list and attaches every recording to its call. A **Play** button then appears under the call's duration on the lead page and in **Calls → Call log**. Only Zoom's recording reference is stored. On Play, the server gets a short-lived link from Zoom and the browser plays the audio from Zoom, so nothing is downloaded to your hosting. To turn it on:
+1. Add the scopes `phone:read:list_recordings:admin` and `phone:read:call_recording:admin` to the Zoom app.
+2. Click **Reconnect** under **Calls → Zoom**, so the new scopes take effect.
+
+If the scopes are missing, calls still sync as usual and **Calls → Zoom** shows why recordings aren't available.
 
 **Click-to-call (optional).** A green phone button sits next to each lead's numbers on Leads, Pending tasks and the lead page. Clicking the number itself still copies it.
 - **With Zoom connected:** the button opens the number in the Zoom desktop app (`zoomphonecall://`).

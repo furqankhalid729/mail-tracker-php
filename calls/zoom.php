@@ -128,6 +128,9 @@ require __DIR__ . '/../includes/header.php';
                 <?php if (!zoom_enabled()): ?>
                     <div class="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-amber-200">Zoom credentials are missing. Add <code>ZOOM_CLIENT_ID</code> and <code>ZOOM_CLIENT_SECRET</code> to <code>.env</code> (see the setup steps).</div>
                 <?php endif; ?>
+                <?php if ($conn && !empty($conn['recordings_error'])): ?>
+                    <div class="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-amber-200"><b class="font-medium">Call recordings:</b> <?= e($conn['recordings_error']) ?></div>
+                <?php endif; ?>
                 <?php if ($conn && $conn['last_error'] && $conn['status'] === 'error'): ?>
                     <div class="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200"><?= e($conn['last_error']) ?></div>
                 <?php endif; ?>
@@ -170,7 +173,7 @@ require __DIR__ . '/../includes/header.php';
         <ol class="card-body list-decimal space-y-3 pl-9 text-sm text-slate-600">
             <li>In the <a class="text-indigo-600 underline" href="https://marketplace.zoom.us/" target="_blank" rel="noopener">Zoom App Marketplace</a> → <b>Develop → Build App</b>, create a <b>General App</b> (user-managed off: <b>admin-managed</b>).</li>
             <li>OAuth redirect URL and allow list:<code class="mt-1 block break-all rounded bg-slate-100 px-2 py-1 text-xs"><?= e(zoom_redirect_uri()) ?></code></li>
-            <li>Scopes: add <code class="rounded bg-slate-100 px-1 text-xs"><?= e(ZOOM_SCOPES_NEEDED) ?></code> (optional: <code class="rounded bg-slate-100 px-1 text-xs">user:read:user:admin</code> to show who connected).</li>
+            <li>Scopes: add <code class="rounded bg-slate-100 px-1 text-xs"><?= e(ZOOM_SCOPES_NEEDED) ?></code> (optional: <code class="rounded bg-slate-100 px-1 text-xs">user:read:user:admin</code> to show who connected; <code class="rounded bg-slate-100 px-1 text-xs"><?= e(ZOOM_RECORDING_SCOPES) ?></code> to play call recordings).</li>
             <li>Copy the Client ID and Client Secret into <code>.env</code> as <code>ZOOM_CLIENT_ID</code> / <code>ZOOM_CLIENT_SECRET</code>.</li>
             <li>Click <b>Connect Zoom</b> and approve as a Zoom account admin with Zoom Phone.</li>
             <li>Add the cron job <code class="break-all text-xs">*/15 * * * * php <?= e(APP_ROOT) ?>/cron/sync-zoom-calls.php</code></li>

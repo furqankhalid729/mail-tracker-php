@@ -102,7 +102,7 @@ require __DIR__ . '/../includes/header.php';
                     <td class="whitespace-nowrap text-xs tabular-nums text-slate-500"><?= e($closerLine ?: '—') ?></td>
                     <td><?= call_result_badge($c['call_result'], (bool) $c['is_connected']) ?></td>
                     <td><?= call_ended_by_badge($c) ?></td>
-                    <td class="whitespace-nowrap text-right tabular-nums <?= $c['is_connected'] ? 'font-medium text-slate-900' : 'text-slate-400' ?>"><?= e(format_duration((int) $c['duration'])) ?></td>
+                    <td class="whitespace-nowrap text-right tabular-nums <?= $c['is_connected'] ? 'font-medium text-slate-900' : 'text-slate-400' ?>"><?= e(format_duration((int) $c['duration'])) ?><?= call_recording_player($c) ?></td>
                 </tr>
             <?php endforeach; ?>
             </tbody>

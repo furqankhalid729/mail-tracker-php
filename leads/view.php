@@ -126,7 +126,7 @@ require __DIR__ . '/../includes/header.php';
                             <td class="whitespace-nowrap text-xs"><?= $c['closer_name'] ? e($c['closer_name']) : '<span class="text-slate-400">—</span>' ?></td>
                             <td><?= call_result_badge($c['call_result'], (bool) $c['is_connected']) ?></td>
                             <td><?= call_ended_by_badge($c) ?></td>
-                            <td class="text-right text-xs tabular-nums"><?= e(format_duration((int) $c['duration'])) ?></td>
+                            <td class="text-right text-xs tabular-nums"><?= e(format_duration((int) $c['duration'])) ?><?= call_recording_player($c) ?></td>
                         </tr>
                     <?php endforeach; ?>
                     <?php if (!$calls): ?><tr><td colspan="7" class="py-8 text-center text-sm text-slate-400">No Zoom calls to these numbers yet. Calls appear after the next Zoom sync.</td></tr><?php endif; ?>
