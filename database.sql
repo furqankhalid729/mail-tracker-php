@@ -438,6 +438,7 @@ CREATE TABLE IF NOT EXISTS lead_statuses (
     color VARCHAR(20) NOT NULL DEFAULT '#64748b',
     requires_date TINYINT(1) NOT NULL DEFAULT 0,
     in_pending TINYINT(1) NOT NULL DEFAULT 0,
+    requires_approval TINYINT(1) NOT NULL DEFAULT 0,
     sort_order INT NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL,
     UNIQUE KEY uq_lead_status_name (workspace_id, name),
@@ -451,6 +452,10 @@ CREATE TABLE IF NOT EXISTS leads (
     assigned_to INT UNSIGNED NULL,
     status_id INT UNSIGNED NULL,
     follow_up_on DATE NULL,
+    approval_status ENUM('pending','approved','rejected') NULL,
+    approval_by INT UNSIGNED NULL,
+    approval_at DATETIME NULL,
+    approval_note VARCHAR(500) NULL,
     name VARCHAR(255) NOT NULL,
     website VARCHAR(255) NULL,
     emails VARCHAR(1000) NULL,
@@ -471,6 +476,7 @@ CREATE TABLE IF NOT EXISTS leads (
     KEY idx_leads_assigned (workspace_id, assigned_to),
     KEY idx_leads_status (workspace_id, status_id),
     KEY idx_leads_follow_up (workspace_id, follow_up_on),
+    KEY idx_leads_approval (workspace_id, approval_status),
     KEY idx_leads_last_call (workspace_id, last_call_at),
     KEY idx_leads_attempts (workspace_id, total_attempts),
     KEY idx_leads_created (workspace_id, created_at),
@@ -478,7 +484,8 @@ CREATE TABLE IF NOT EXISTS leads (
     KEY idx_leads_source (workspace_id, source),
     CONSTRAINT fk_leads_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
     CONSTRAINT fk_leads_assignee FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL,
-    CONSTRAINT fk_leads_status FOREIGN KEY (status_id) REFERENCES lead_statuses(id) ON DELETE SET NULL
+    CONSTRAINT fk_leads_status FOREIGN KEY (status_id) REFERENCES lead_statuses(id) ON DELETE SET NULL,
+    CONSTRAINT fk_leads_approver FOREIGN KEY (approval_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- A lead can have several numbers. number_key = last 10 digits, matched against zoom_calls.external_key.
@@ -500,7 +507,7 @@ CREATE TABLE IF NOT EXISTS lead_activity (
     workspace_id INT UNSIGNED NOT NULL,
     lead_id INT UNSIGNED NOT NULL,
     user_id INT UNSIGNED NULL,
-    type ENUM('created','imported','status','note','assigned','edited') NOT NULL,
+    type ENUM('created','imported','status','note','assigned','edited','approval') NOT NULL,
     from_label VARCHAR(100) NULL,
     to_label VARCHAR(100) NULL,
     body TEXT NULL,

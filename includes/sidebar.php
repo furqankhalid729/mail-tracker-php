@@ -38,10 +38,11 @@ if (is_closer()) {
 $unread = (int) q_val('SELECT COUNT(*) FROM email_threads WHERE workspace_id = ? AND is_unread = 1', [ws_id()]);
 $myOpenTaskCount = my_open_task_count();
 $pendingLeaveCount = leave_pending_count();
+$pendingApprovalCount = in_array('leads', array_column($nav, 0), true) ? lead_pending_approval_count() : 0;
 $pendingDueCount = in_array('leads-pending', array_column($nav, 0), true) ? lead_pending_due_count() : 0;
 $myWorkspaces = q_all('SELECT w.id, w.name FROM workspaces w JOIN workspace_members m ON m.workspace_id = w.id WHERE m.user_id = ? ORDER BY w.name', [user_id()]);
 
-$renderNav = function () use ($nav, $active_nav, $unread, $myOpenTaskCount, $pendingLeaveCount, $pendingDueCount, $myWorkspaces, $workspace) { ?>
+$renderNav = function () use ($nav, $active_nav, $unread, $myOpenTaskCount, $pendingLeaveCount, $pendingApprovalCount, $pendingDueCount, $myWorkspaces, $workspace) { ?>
     <div class="flex h-14 shrink-0 items-center gap-2.5 border-b border-slate-200 px-5">
         <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-sm"><?= icon('mail', 'h-4.5 w-4.5 h-[18px] w-[18px]') ?></span>
         <span class="text-[15px] font-semibold tracking-tight text-slate-900"><?= e(APP_NAME) ?></span>
@@ -64,13 +65,15 @@ $renderNav = function () use ($nav, $active_nav, $unread, $myOpenTaskCount, $pen
     </div>
     <nav class="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
         <?php foreach ($nav as [$key, $label, $href, $ic]): ?>
-            <a href="<?= e(url($href)) ?>" class="nav-link <?= $active_nav === $key ? 'active' : '' ?> <?= $key === 'leads-pending' ? 'pl-9 text-[13px]' : '' ?>">
+            <a href="<?= e($key === 'leads' && $pendingApprovalCount ? url($href, ['approval' => 'pending']) : url($href)) ?>" class="nav-link <?= $active_nav === $key ? 'active' : '' ?> <?= $key === 'leads-pending' ? 'pl-9 text-[13px]' : '' ?>">
                 <?= icon($ic, 'h-5 w-5 text-slate-400') ?>
                 <span class="flex-1"><?= e($label) ?></span>
                 <?php if ($key === 'inbox' && $unread > 0): ?>
                     <span class="rounded-full bg-indigo-600 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-white"><?= $unread > 99 ? '99+' : $unread ?></span>
                 <?php elseif ($key === 'leads-pending' && $pendingDueCount > 0): ?>
                     <span class="rounded-full bg-red-100 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-red-700" title="Due today or overdue (assigned to you)"><?= $pendingDueCount > 99 ? '99+' : $pendingDueCount ?></span>
+                <?php elseif ($key === 'leads' && $pendingApprovalCount > 0): ?>
+                    <span class="rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-amber-700" title="Leads awaiting your approval"><?= $pendingApprovalCount > 99 ? '99+' : $pendingApprovalCount ?></span>
                 <?php elseif ($key === 'leaves' && $pendingLeaveCount > 0): ?>
                     <span class="rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-amber-700" title="Leave requests waiting for approval"><?= $pendingLeaveCount > 99 ? '99+' : $pendingLeaveCount ?></span>
                 <?php elseif ($key === 'tasks' && $myOpenTaskCount > 0): ?>

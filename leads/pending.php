@@ -69,7 +69,7 @@ if ($to) {
 $total = (int) q_val("SELECT COUNT(*) FROM leads l WHERE $where", $params);
 $p = paginate($total, per_page(25));
 $leads = q_all(
-    "SELECT l.*, a.name assignee_name FROM leads l LEFT JOIN users a ON a.id = l.assigned_to
+    "SELECT l.*, a.name assignee_name, ap.name approver_name FROM leads l LEFT JOIN users a ON a.id = l.assigned_to LEFT JOIN users ap ON ap.id = l.approval_by
      WHERE $where ORDER BY l.follow_up_on IS NULL, l.follow_up_on, l.updated_at DESC, l.id DESC LIMIT ? OFFSET ?",
     [...$params, $p['per_page'], $p['offset']]
 );
@@ -203,7 +203,7 @@ require __DIR__ . '/../includes/header.php';
                         <?php else: ?><span class="text-slate-400">—</span><?php endif; ?>
                         <?php if ($lz = lead_time_zone($lp)): ?><span class="block text-xs text-slate-400" title="<?= e(US_TIME_ZONES[$lz][0]) ?> time"><?= e(US_TIME_ZONES[$lz][1]) ?> · <?= e(us_zone_local_time($lz)) ?></span><?php endif; ?>
                     </td>
-                    <td><?php require __DIR__ . '/_status_form.php'; ?></td>
+                    <td><?php require __DIR__ . '/_status_form.php'; ?><?php require __DIR__ . '/_approval.php'; ?></td>
                     <td class="max-w-[18rem] text-xs text-slate-600">
                         <?php if (isset($notes[(int) $l['id']])): ?><span class="line-clamp-2" title="<?= e($notes[(int) $l['id']]) ?>"><?= e($notes[(int) $l['id']]) ?></span><?php else: ?><span class="text-slate-400">—</span><?php endif; ?>
                     </td>

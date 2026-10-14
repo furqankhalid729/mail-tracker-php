@@ -36,6 +36,9 @@ if (is_post()) {
         flash_errors(['name' => 'Enter a name, or at least a phone, email or website.']);
         redirect(url('leads/edit.php', ['id' => $lead['id'] ?? null]));
     }
+    if (!$lead || (int) $lead['status_id'] !== (int) $data['status_id']) {
+        $data += lead_approval_fields_for_status($data['status_id'], $ws);
+    }
     $now = now();
     $id = transaction(function () use ($lead, $data, $phones, $ws, $now, $statuses) {
         if ($lead) {

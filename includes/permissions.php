@@ -45,7 +45,8 @@ const PERMISSIONS = [
     'wiki.manage' => 'admin',             // create, edit, move and delete wiki pages (everyone can read and search)
     'leaves.approve' => 'owner',          // see everyone's leave requests, approve or reject them
     'employees.manage' => 'admin',        // employee records, statuses, contracts and documents
-    'leads.manage' => 'admin',            // import, add, edit, assign and delete leads; define lead statuses
+    'leads.manage' => 'admin',
+    'leads.approve' => 'owner',           // approve / disapprove leads in statuses that need approval (e.g. Appointment booked)            // import, add, edit, assign and delete leads; define lead statuses
 ];
 
 /**

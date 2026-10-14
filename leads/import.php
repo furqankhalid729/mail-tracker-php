@@ -72,7 +72,7 @@ if (is_post() && input('action') === 'process') {
                 $s['duplicates']++;
                 continue;
             }
-            $id = db_insert('leads', $data + [
+            $id = db_insert('leads', $data + lead_approval_fields_for_status($state['status_id'] ? (int) $state['status_id'] : null, $ws) + [
                 'workspace_id' => $ws,
                 'assigned_to' => $state['assigned_to'],
                 'status_id' => $state['status_id'],

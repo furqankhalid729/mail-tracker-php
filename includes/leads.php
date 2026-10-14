@@ -7,6 +7,8 @@ declare(strict_types=1);
  *   - A lead has several phones (lead_phones.number_key = last 10 digits, the same rule as closer_numbers).
  *   - Zoom calls are linked to leads by the external number; attempts / last call are cached on leads.
  *   - Statuses are defined per workspace by admins (lead_statuses); every status is a filter.
+ *   - Statuses with requires_approval (e.g. "Appointment booked") put a lead into approval_status = pending;
+ *     a Super Admin (leads.approve) approves or disapproves it. Leaving the status clears the approval.
  */
 
 /** [name, color, requires_date, in_pending] */
@@ -28,7 +30,7 @@ const LEAD_FIELDS = [
     'notes' => 'Notes',
 ];
 
-const LEAD_FILTER_KEYS = ['q', 'status', 'assigned', 'attempts', 'last_call', 'connected', 'has_phone', 'has_email', 'has_website', 'min_rating', 'source', 'field', 'field_value', 'tz'];
+const LEAD_FILTER_KEYS = ['q', 'status', 'approval', 'assigned', 'attempts', 'last_call', 'connected', 'has_phone', 'has_email', 'has_website', 'min_rating', 'source', 'field', 'field_value', 'tz'];
 
 /* ---------------------------------------------------------------------------
  * Statuses
@@ -63,6 +65,56 @@ function lead_status_chip(?int $statusId): string
 {
     $s = $statusId ? (lead_statuses(ws_id())[$statusId] ?? null) : null;
     return $s ? tag_chip($s) : '<span class="text-xs text-slate-400">No status</span>';
+}
+
+/* ---------------------------------------------------------------------------
+ * Approval (statuses with requires_approval, decided by a Super Admin)
+ * ------------------------------------------------------------------------- */
+
+const LEAD_APPROVAL_LABELS = ['pending' => 'Awaiting approval', 'approved' => 'Approved', 'rejected' => 'Disapproved'];
+
+/** Approval columns for a lead entering $statusId: pending when that status needs approval, otherwise cleared. */
+function lead_approval_fields_for_status(?int $statusId, int $wsId): array
+{
+    $needs = $statusId && !empty(lead_statuses($wsId)[$statusId]['requires_approval']);
+    return ['approval_status' => $needs ? 'pending' : null, 'approval_by' => null, 'approval_at' => null, 'approval_note' => null];
+}
+
+/** Approval badge for a lead row (needs approval_status; approver_name / approval_at add a tooltip). */
+function lead_approval_badge(array $lead, string $class = ''): string
+{
+    $state = $lead['approval_status'] ?? null;
+    if (!$state || !isset(LEAD_APPROVAL_LABELS[$state])) {
+        return '';
+    }
+    $color = ['pending' => 'amber', 'approved' => 'green', 'rejected' => 'red'][$state];
+    $icon = ['pending' => 'clock', 'approved' => 'check', 'rejected' => 'x'][$state];
+    $tip = $state === 'pending' ? 'Waiting for a Super Admin' : trim(LEAD_APPROVAL_LABELS[$state] . ' by ' . ($lead['approver_name'] ?? 'a Super Admin') . (!empty($lead['approval_at']) ? ' · ' . format_dt($lead['approval_at']) : '') . (!empty($lead['approval_note']) ? ' — ' . $lead['approval_note'] : ''));
+    return '<span class="badge badge-' . $color . ' inline-flex items-center gap-1 ' . e($class) . '" title="' . e($tip) . '">' . icon($icon, 'h-3 w-3') . e(LEAD_APPROVAL_LABELS[$state]) . '</span>';
+}
+
+/** Approve ($approve = true) or disapprove a lead awaiting approval (or change an earlier decision). Returns an error or null. */
+function lead_decide_approval(array $lead, bool $approve, string $note = ''): ?string
+{
+    if (empty($lead['approval_status'])) {
+        return 'This lead is not waiting for approval.';
+    }
+    $state = $approve ? 'approved' : 'rejected';
+    $note = mb_substr(trim($note), 0, 500);
+    db_update('leads', ['approval_status' => $state, 'approval_by' => user_id(), 'approval_at' => now(), 'approval_note' => $note !== '' ? $note : null, 'updated_at' => now()],
+        'id = ? AND workspace_id = ?', [$lead['id'], ws_id()]);
+    $statusName = $lead['status_id'] ? (lead_statuses(ws_id())[$lead['status_id']]['name'] ?? null) : null;
+    log_lead_activity((int) $lead['id'], 'approval', $note !== '' ? $note : null, $statusName, LEAD_APPROVAL_LABELS[$state]);
+    return null;
+}
+
+/** Leads awaiting approval in the workspace, for the Super Admin's sidebar badge (0 for everyone else). */
+function lead_pending_approval_count(): int
+{
+    if (!allowed('leads.approve')) {
+        return 0;
+    }
+    return (int) q_val("SELECT COUNT(*) FROM leads WHERE workspace_id = ? AND approval_status = 'pending'", [ws_id()]);
 }
 
 /** Statuses whose leads are listed on Leads → Pending tasks, keyed by id. */
@@ -128,7 +180,8 @@ function find_lead_or_404(int $id): array
 {
     [$where, $params] = lead_visibility_sql();
     $lead = q_one(
-        "SELECT l.*, a.name assignee_name FROM leads l LEFT JOIN users a ON a.id = l.assigned_to WHERE l.id = ? AND $where",
+        "SELECT l.*, a.name assignee_name, ap.name approver_name FROM leads l
+         LEFT JOIN users a ON a.id = l.assigned_to LEFT JOIN users ap ON ap.id = l.approval_by WHERE l.id = ? AND $where",
         [$id, ...$params]
     );
     if (!$lead) {
@@ -253,6 +306,10 @@ function lead_filter_sql(array $f, bool $withStatus = true): array
         $where[] = lead_unknown_zone_sql();
     } elseif (isset($f['tz'], US_AREA_CODES[$f['tz']])) {
         $where[] = 'EXISTS (SELECT 1 FROM lead_phones p WHERE p.lead_id = l.id AND ' . area_code_in_zones_sql('p.number_key', [$f['tz']]) . ')';
+    }
+    if (isset($f['approval']) && isset(LEAD_APPROVAL_LABELS[$f['approval']])) {
+        $where[] = 'l.approval_status = ?';
+        $params[] = $f['approval'];
     }
     if (!empty($f['source'])) {
         $where[] = 'l.source = ?';
@@ -498,7 +555,11 @@ function lead_change_status(array $lead, int $statusId, string $note = '', ?stri
     $statusChanged = (int) $lead['status_id'] !== $statusId;
     $dateChanged = ($lead['follow_up_on'] ?? null) !== $followUpOn;
     if ($statusChanged || $dateChanged) {
-        db_update('leads', ['status_id' => $statusId, 'follow_up_on' => $followUpOn, 'updated_at' => now()], 'id = ? AND workspace_id = ?', [$lead['id'], ws_id()]);
+        $data = ['status_id' => $statusId, 'follow_up_on' => $followUpOn, 'updated_at' => now()];
+        if ($statusChanged) {
+            $data += lead_approval_fields_for_status($statusId, ws_id()); // entering an approval status starts a fresh approval
+        }
+        db_update('leads', $data, 'id = ? AND workspace_id = ?', [$lead['id'], ws_id()]);
     }
     $body = trim(($followUpOn ? 'Date: ' . date('M j, Y', strtotime($followUpOn)) . "\n" : '') . $note);
     if ($statusChanged || ($followUpOn && $dateChanged)) {

@@ -8,7 +8,8 @@
  *                                       (reuses the customer with that email, or creates one from the lead)
  *   assign  id, user_id (0 = unassign)  leads.manage
  *   delete  id                          leads.manage
- *   bulk    ids[] | all_matching + filters, bulk = set_status [+ follow_up_on] | assign | delete
+ *   approve / disapprove  id[, note]    leads.approve (Super Admin), for leads awaiting approval
+ *   bulk    ids[] | all_matching + filters, bulk = set_status [+ follow_up_on] | assign | delete | approve | disapprove
  */
 require_once __DIR__ . '/../includes/init.php';
 require_auth();
@@ -20,6 +21,9 @@ if ($action === 'bulk') {
     $bulk = (string) input('bulk');
     if (in_array($bulk, ['assign', 'delete'], true)) {
         require_permission('leads.manage');
+    }
+    if (in_array($bulk, ['approve', 'disapprove'], true)) {
+        require_permission('leads.approve');
     }
     if ((string) input('all_matching') === '1') {
         [$where, $params] = lead_filter_sql(lead_filters_from(json_decode((string) input('filters'), true) ?: []));
@@ -61,6 +65,14 @@ if ($action === 'bulk') {
         }
         $n = leads_assign($where, $params, $userId);
         flash('success', number_format($n) . ' lead' . ($n === 1 ? '' : 's') . ($userId ? ' assigned.' : ' unassigned.'));
+    } elseif ($bulk === 'approve' || $bulk === 'disapprove') {
+        // Only leads that are in an approval status; already-decided ones are skipped
+        $n = 0;
+        foreach (q_all("SELECT l.id, l.status_id, l.approval_status FROM leads l WHERE $where AND l.approval_status = 'pending'", $params) as $lead) {
+            lead_decide_approval($lead, $bulk === 'approve');
+            $n++;
+        }
+        flash($n ? 'success' : 'error', $n ? number_format($n) . ' lead' . ($n === 1 ? '' : 's') . ($bulk === 'approve' ? ' approved.' : ' disapproved.') : 'None of the selected leads are awaiting approval.');
     } elseif ($bulk === 'delete') {
         $ids = array_map('intval', q_col("SELECT l.id FROM leads l WHERE $where", $params));
         foreach (array_chunk($ids, 1000) as $chunk) {
@@ -134,6 +146,16 @@ switch ($action) {
         }
         leads_assign('l.workspace_id = ? AND l.id = ?', [$ws, $id], $userId);
         flash('success', $userId ? 'Lead assigned.' : 'Lead unassigned.');
+        break;
+
+    case 'approve':
+    case 'disapprove':
+        require_permission('leads.approve');
+        if ($error = lead_decide_approval($lead, $action === 'approve', $note)) {
+            flash('error', $error);
+        } else {
+            flash('success', $action === 'approve' ? 'Lead approved.' : 'Lead disapproved.');
+        }
         break;
 
     case 'delete':

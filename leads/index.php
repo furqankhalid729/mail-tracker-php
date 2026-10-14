@@ -25,7 +25,8 @@ $order = sort_sql([
     'last_call' => 'l.last_call_at', 'created' => 'l.created_at',
 ], 'created', 'desc');
 $leads = q_all(
-    "SELECT l.*, a.name assignee_name FROM leads l LEFT JOIN users a ON a.id = l.assigned_to
+    "SELECT l.*, a.name assignee_name, ap.name approver_name FROM leads l LEFT JOIN users a ON a.id = l.assigned_to
+     LEFT JOIN users ap ON ap.id = l.approval_by
      WHERE $where ORDER BY $order, l.id DESC LIMIT ? OFFSET ?",
     [...$params, $p['per_page'], $p['offset']]
 );
@@ -45,6 +46,10 @@ $tzCounts = lead_time_zone_counts($filters);
 $tzAll = (int) q_val("SELECT COUNT(*) FROM leads l WHERE $whereNoTz", $paramsNoTz);
 $activeFilterCount = count(array_diff_key($filters, ['q' => 1, 'status' => 1, 'tz' => 1, 'field_value' => 1]));
 $chipUrl = fn(?string $status) => url('leads/index.php', array_merge(array_diff_key($filters, ['status' => 1]), ['status' => $status, 'sort' => input('sort'), 'dir' => input('dir')]));
+[$whereNoApproval, $paramsNoApproval] = lead_filter_sql(array_diff_key($filters, ['approval' => 1]));
+$approvalCounts = array_column(q_all("SELECT l.approval_status, COUNT(*) n FROM leads l WHERE $whereNoApproval AND l.approval_status IS NOT NULL GROUP BY l.approval_status", $paramsNoApproval), 'n', 'approval_status');
+$approvalUrl = fn(?string $state) => url('leads/index.php', array_merge(array_diff_key($filters, ['approval' => 1]), ['approval' => $state, 'sort' => input('sort'), 'dir' => input('dir')]));
+$canApprove = allowed('leads.approve');
 $tzUrl = fn(?string $tz) => url('leads/index.php', array_merge(array_diff_key($filters, ['tz' => 1]), ['tz' => $tz, 'sort' => input('sort'), 'dir' => input('dir')]));
 
 $page_title = 'Leads';
@@ -76,6 +81,16 @@ require __DIR__ . '/../includes/header.php';
     <?php endforeach; ?>
     <?php if (!empty($statusCounts[''])): ?>
         <a href="<?= e($chipUrl('none')) ?>" class="rounded-full px-3 py-1 text-xs font-medium ring-1 <?= ($filters['status'] ?? '') === 'none' ? 'bg-slate-900 text-white ring-slate-900' : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50' ?>">No status <span class="opacity-70"><?= number_format($statusCounts['']) ?></span></a>
+    <?php endif; ?>
+    <!-- Approval (statuses that need a Super Admin's approval) -->
+    <?php if ($approvalCounts || !empty($filters['approval'])): ?>
+        <span class="mx-1 h-5 w-px bg-slate-200"></span>
+        <?php foreach (LEAD_APPROVAL_LABELS as $state => $label): $active = ($filters['approval'] ?? '') === $state; $n = (int) ($approvalCounts[$state] ?? 0);
+            if (!$n && !$active) continue; ?>
+            <a href="<?= e($approvalUrl($active ? null : $state)) ?>" class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ring-1 <?= $active ? 'bg-slate-900 text-white ring-slate-900' : ($state === 'pending' ? 'bg-amber-50 text-amber-800 ring-amber-200 hover:bg-amber-100' : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50') ?>">
+                <?= icon(['pending' => 'clock', 'approved' => 'check', 'rejected' => 'x'][$state], 'h-3.5 w-3.5') ?><?= e($label) ?> <span class="opacity-70"><?= number_format($n) ?></span>
+            </a>
+        <?php endforeach; ?>
     <?php endif; ?>
     <!-- Time zone (from the phones' area codes) with each zone's current local time and lead count -->
     <label class="ml-auto inline-flex items-center gap-2 text-xs font-medium text-slate-500">
@@ -196,6 +211,7 @@ require __DIR__ . '/../includes/header.php';
             <select name="bulk" x-model="bulk" class="input !w-auto !py-1.5" required>
                 <option value="">Choose action…</option>
                 <option value="set_status">Set status</option>
+                <?php if ($canApprove): ?><option value="approve">Approve</option><option value="disapprove">Disapprove</option><?php endif; ?>
                 <?php if ($manage): ?><option value="assign">Assign to</option><option value="delete">Delete</option><?php endif; ?>
             </select>
             <select name="status_id" x-show="bulk === 'set_status'" class="input !w-auto !py-1.5" @change="bulkNeedsDate = $event.target.selectedOptions[0].dataset.date === '1'" x-init="bulkNeedsDate = $el.selectedOptions[0]?.dataset.date === '1'">
@@ -253,6 +269,7 @@ require __DIR__ . '/../includes/header.php';
                     </td>
                     <td>
                         <?php require __DIR__ . '/_status_form.php'; ?>
+                        <?php require __DIR__ . '/_approval.php'; ?>
                     </td>
                     <td class="text-right tabular-nums">
                         <span class="font-medium text-slate-900"><?= number_format((int) $l['total_attempts']) ?></span>

@@ -36,6 +36,7 @@ require __DIR__ . '/../includes/header.php';
         <h1 class="page-title truncate"><?= e($lead['name']) ?></h1>
         <p class="page-subtitle">
             <?= lead_status_chip($lead['status_id'] ? (int) $lead['status_id'] : null) ?>
+            <?php if ($lead['approval_status']): ?><span class="ml-2"><?= lead_approval_badge($lead) ?></span><?php endif; ?>
             <?php if ($lead['follow_up_on']): ?><span class="ml-2"><?= lead_follow_up_badge($lead['follow_up_on'], 'text-sm') ?></span><?php endif; ?>
             <?php if ($lead['rating'] !== null): ?><span class="ml-2">★ <?= e($lead['rating']) ?><?= $lead['reviews_count'] !== null ? ' (' . number_format((int) $lead['reviews_count']) . ' reviews)' : '' ?></span><?php endif; ?>
             <?php if ($lead['source']): ?><span class="ml-2 text-slate-400">· <?= e($lead['source']) ?></span><?php endif; ?>
@@ -137,6 +138,33 @@ require __DIR__ . '/../includes/header.php';
     </div>
 
     <div class="space-y-6">
+        <?php if ($lead['approval_status']): $state = $lead['approval_status']; ?>
+        <div class="card <?= $state === 'pending' ? 'ring-2 ring-amber-300' : '' ?>">
+            <div class="card-header"><h2 class="card-title">Approval</h2><?= lead_approval_badge($lead) ?></div>
+            <div class="card-body space-y-3 text-sm">
+                <?php if ($state === 'pending'): ?>
+                    <p class="text-slate-600"><?= e($statuses[$lead['status_id']]['name'] ?? 'This status') ?> needs a Super Admin to approve or disapprove it.</p>
+                <?php else: ?>
+                    <p class="text-slate-600"><?= e(LEAD_APPROVAL_LABELS[$state]) ?> by <b class="font-medium text-slate-900"><?= e($lead['approver_name'] ?: 'a former member') ?></b> · <?= e(format_dt($lead['approval_at'])) ?></p>
+                    <?php if ($lead['approval_note']): ?><p class="whitespace-pre-line rounded bg-slate-50 px-3 py-2 text-slate-700"><?= e($lead['approval_note']) ?></p><?php endif; ?>
+                <?php endif; ?>
+                <?php if (allowed('leads.approve')): ?>
+                    <form method="post" action="<?= e(url('leads/actions.php')) ?>" class="space-y-2" x-data="{ open: <?= $state === 'pending' ? 'true' : 'false' ?> }">
+                        <?= csrf_field() ?><input type="hidden" name="id" value="<?= $id ?>">
+                        <button type="button" class="text-xs font-medium text-indigo-600 hover:underline" x-show="!open" @click="open = true">Change decision</button>
+                        <div x-show="open" <?= $state === 'pending' ? '' : 'x-cloak' ?> class="space-y-2">
+                            <textarea class="input" name="note" rows="2" maxlength="500" placeholder="Note for the closer (optional)"></textarea>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button name="action" value="approve" class="btn-primary justify-center !bg-emerald-600 hover:!bg-emerald-700"><?= icon('check', 'h-4 w-4') ?> Approve</button>
+                                <button name="action" value="disapprove" class="btn-secondary justify-center text-red-600"><?= icon('x', 'h-4 w-4') ?> Disapprove</button>
+                            </div>
+                        </div>
+                    </form>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <form method="post" action="<?= e(url('leads/actions.php')) ?>" class="card" x-data="{ needsDate: <?= !empty($statuses[$lead['status_id']]['requires_date']) ? 'true' : 'false' ?> }">
             <?= csrf_field() ?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?= $id ?>">
             <div class="card-header"><h2 class="card-title">Update</h2></div>
@@ -194,6 +222,8 @@ require __DIR__ . '/../includes/header.php';
                                     added a note
                                 <?php elseif ($a['type'] === 'imported'): ?>
                                     imported the lead<?= $a['to_label'] ? ' from ' . e($a['to_label']) : '' ?>
+                                <?php elseif ($a['type'] === 'approval'): ?>
+                                    <b class="font-medium <?= $a['to_label'] === 'Approved' ? 'text-emerald-700' : 'text-red-600' ?>"><?= e(strtolower((string) $a['to_label'])) ?></b><?= $a['from_label'] ? ' ' . e($a['from_label']) : ' the lead' ?>
                                 <?php elseif ($a['type'] === 'created'): ?>
                                     added the lead
                                 <?php else: ?>

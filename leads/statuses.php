@@ -2,6 +2,7 @@
 /**
  * Admins define the lead statuses closers can set. Each one automatically becomes a filter on the leads list.
  *   POST action=save    [id], name, color[, requires_date] (closers must pick a date when they set it)[, in_pending] (listed on Pending tasks)
+ *                       [, requires_approval] (a Super Admin approves or disapproves each lead set to it)
  *   POST action=move    id, dir = up | down
  *   POST action=delete  id, move_to (status that its leads get)
  */
@@ -25,6 +26,7 @@ if (is_post()) {
         $color = preg_match('/^#[0-9a-fA-F]{6}$/', (string) input('color')) ? (string) input('color') : '#64748b';
         $requiresDate = input('requires_date') ? 1 : 0;
         $inPending = input('in_pending') ? 1 : 0;
+        $requiresApproval = input('requires_approval') ? 1 : 0;
         $taken = q_val('SELECT id FROM lead_statuses WHERE workspace_id = ? AND name = ? AND id <> ?', [$ws, $name, $id]);
         if ($name === '' || $taken) {
             keep_old_input();
@@ -32,11 +34,18 @@ if (is_post()) {
             redirect(url($self, ['edit' => $id ?: null]));
         }
         if ($id) {
-            db_update('lead_statuses', ['name' => $name, 'color' => $color, 'requires_date' => $requiresDate, 'in_pending' => $inPending], 'id = ? AND workspace_id = ?', [$id, $ws]);
+            db_update('lead_statuses', ['name' => $name, 'color' => $color, 'requires_date' => $requiresDate, 'in_pending' => $inPending, 'requires_approval' => $requiresApproval], 'id = ? AND workspace_id = ?', [$id, $ws]);
+            if ($requiresApproval && empty($statuses[$id]['requires_approval'])) {
+                // Turned on: leads already in this status now wait for approval
+                q("UPDATE leads SET approval_status = 'pending' WHERE workspace_id = ? AND status_id = ? AND approval_status IS NULL", [$ws, $id]);
+            } elseif (!$requiresApproval && !empty($statuses[$id]['requires_approval'])) {
+                // Turned off: nothing is waiting any more (earlier decisions stay on the timeline)
+                q('UPDATE leads SET approval_status = NULL, approval_by = NULL, approval_at = NULL, approval_note = NULL WHERE workspace_id = ? AND status_id = ?', [$ws, $id]);
+            }
             flash('success', 'Status saved.');
         } else {
             $order = (int) q_val('SELECT COALESCE(MAX(sort_order), 0) + 1 FROM lead_statuses WHERE workspace_id = ?', [$ws]);
-            db_insert('lead_statuses', ['workspace_id' => $ws, 'name' => $name, 'color' => $color, 'requires_date' => $requiresDate, 'in_pending' => $inPending, 'sort_order' => $order, 'created_at' => now()]);
+            db_insert('lead_statuses', ['workspace_id' => $ws, 'name' => $name, 'color' => $color, 'requires_date' => $requiresDate, 'in_pending' => $inPending, 'requires_approval' => $requiresApproval, 'sort_order' => $order, 'created_at' => now()]);
             flash('success', 'Status added. It now appears as a filter on the leads list.');
         }
         clear_old_input();
@@ -61,7 +70,8 @@ if (is_post()) {
                 $leadIds = array_map('intval', q_col('SELECT id FROM leads WHERE workspace_id = ? AND status_id = ?', [$ws, $id]));
                 foreach (array_chunk($leadIds, 1000) as $chunk) {
                     $in = placeholders($chunk);
-                    q("UPDATE leads SET status_id = ?, updated_at = ? WHERE workspace_id = ? AND id IN ($in)", [$moveTo, now(), $ws, ...$chunk]);
+                    $approval = lead_approval_fields_for_status($moveTo, $ws)['approval_status'];
+                    q("UPDATE leads SET status_id = ?, approval_status = ?, approval_by = NULL, approval_at = NULL, approval_note = NULL, updated_at = ? WHERE workspace_id = ? AND id IN ($in)", [$moveTo, $approval, now(), $ws, ...$chunk]);
                     q(
                         "INSERT INTO lead_activity (workspace_id, lead_id, user_id, type, from_label, to_label, body, created_at)
                          SELECT workspace_id, id, ?, 'status', ?, ?, 'Previous status was deleted', ? FROM leads WHERE workspace_id = ? AND id IN ($in)",
@@ -110,7 +120,7 @@ require __DIR__ . '/../includes/header.php';
                             </form>
                         <?php endforeach; ?>
                     </td>
-                    <td><?= tag_chip($s) ?><?= $s['requires_date'] ? ' <span class="ml-1 inline-flex items-center gap-1 text-xs text-slate-500" title="Closers must pick a date">' . icon('calendar', 'h-3.5 w-3.5') . 'date required</span>' : '' ?><?= $s['in_pending'] ? ' <span class="ml-1 inline-flex items-center gap-1 text-xs text-slate-500" title="Listed on Pending tasks">' . icon('clock', 'h-3.5 w-3.5') . 'pending task</span>' : '' ?><?= $i === 1 ? ' <span class="ml-1 text-xs text-slate-400">default for new leads</span>' : '' ?></td>
+                    <td><?= tag_chip($s) ?><?= $s['requires_date'] ? ' <span class="ml-1 inline-flex items-center gap-1 text-xs text-slate-500" title="Closers must pick a date">' . icon('calendar', 'h-3.5 w-3.5') . 'date required</span>' : '' ?><?= $s['in_pending'] ? ' <span class="ml-1 inline-flex items-center gap-1 text-xs text-slate-500" title="Listed on Pending tasks">' . icon('clock', 'h-3.5 w-3.5') . 'pending task</span>' : '' ?><?= !empty($s['requires_approval']) ? ' <span class="ml-1 inline-flex items-center gap-1 text-xs text-slate-500" title="A Super Admin approves or disapproves each lead">' . icon('shield', 'h-3.5 w-3.5') . 'needs approval</span>' : '' ?><?= $i === 1 ? ' <span class="ml-1 text-xs text-slate-400">default for new leads</span>' : '' ?></td>
                     <td class="text-right"><a class="font-medium text-indigo-600 hover:underline" href="<?= e(url('leads/index.php', ['status' => $sid])) ?>"><?= number_format($leadCount) ?></a></td>
                     <td class="whitespace-nowrap text-right">
                         <a href="<?= e(url($self, ['edit' => $sid])) ?>" class="btn-icon" aria-label="Edit"><?= icon('pencil', 'h-4 w-4') ?></a>
@@ -170,6 +180,10 @@ require __DIR__ . '/../includes/header.php';
             <label class="flex items-start gap-2 text-sm">
                 <input type="checkbox" name="in_pending" value="1" class="checkbox mt-0.5" <?= old('in_pending', $editing['in_pending'] ?? 0) ? 'checked' : '' ?>>
                 <span><span class="font-medium text-slate-700">Show on Pending tasks</span><span class="block text-xs text-slate-500">Leads with this status are listed on Leads → Pending tasks as a reminder.</span></span>
+            </label>
+            <label class="flex items-start gap-2 text-sm">
+                <input type="checkbox" name="requires_approval" value="1" class="checkbox mt-0.5" <?= old('requires_approval', $editing['requires_approval'] ?? 0) ? 'checked' : '' ?>>
+                <span><span class="font-medium text-slate-700">Needs Super Admin approval</span><span class="block text-xs text-slate-500">Leads set to this status (e.g. Appointment booked) wait until a Super Admin approves or disapproves them.</span></span>
             </label>
             <div class="flex items-center justify-between">
                 <span class="tag-chip" :style="`--tag: ${color}`" x-text="name || 'Preview'"></span>
