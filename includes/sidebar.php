@@ -6,6 +6,7 @@ $nav = [
     ['inbox', 'Inbox', 'inbox/index.php', 'inbox'],
     ['tasks', 'Tasks', 'tasks/index.php', 'tasks'],
     ['employees', 'Employees', 'employees/index.php', 'briefcase'],
+    ['leaves', 'Leave', 'leaves/index.php', 'sun'],
     ['leads', 'Leads', 'leads/index.php', 'phone-out'],
     ['leads-pending', 'Pending tasks', 'leads/pending.php', 'calendar'],
     ['calls', 'Calls', 'calls/index.php', 'phone'],
@@ -29,16 +30,17 @@ if (!can_see_leads()) {
     $nav = array_values(array_filter($nav, fn($item) => !in_array($item[0], ['leads', 'leads-pending'], true)));
 }
 if (is_closer()) {
-    $closerNav = ['leads', 'leads-pending', 'calls', 'inbox', 'customers', 'settings'];
+    $closerNav = ['leads', 'leads-pending', 'calls', 'inbox', 'customers', 'leaves', 'settings'];
     $nav = array_values(array_filter($nav, fn($item) => in_array($item[0], $closerNav, true)));
     usort($nav, fn($a, $b) => array_search($a[0], $closerNav) <=> array_search($b[0], $closerNav));
 }
 $unread = (int) q_val('SELECT COUNT(*) FROM email_threads WHERE workspace_id = ? AND is_unread = 1', [ws_id()]);
 $myOpenTaskCount = my_open_task_count();
+$pendingLeaveCount = leave_pending_count();
 $pendingDueCount = in_array('leads-pending', array_column($nav, 0), true) ? lead_pending_due_count() : 0;
 $myWorkspaces = q_all('SELECT w.id, w.name FROM workspaces w JOIN workspace_members m ON m.workspace_id = w.id WHERE m.user_id = ? ORDER BY w.name', [user_id()]);
 
-$renderNav = function () use ($nav, $active_nav, $unread, $myOpenTaskCount, $pendingDueCount, $myWorkspaces, $workspace) { ?>
+$renderNav = function () use ($nav, $active_nav, $unread, $myOpenTaskCount, $pendingLeaveCount, $pendingDueCount, $myWorkspaces, $workspace) { ?>
     <div class="flex h-14 shrink-0 items-center gap-2.5 border-b border-slate-200 px-5">
         <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-sm"><?= icon('mail', 'h-4.5 w-4.5 h-[18px] w-[18px]') ?></span>
         <span class="text-[15px] font-semibold tracking-tight text-slate-900"><?= e(APP_NAME) ?></span>
@@ -68,6 +70,8 @@ $renderNav = function () use ($nav, $active_nav, $unread, $myOpenTaskCount, $pen
                     <span class="rounded-full bg-indigo-600 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-white"><?= $unread > 99 ? '99+' : $unread ?></span>
                 <?php elseif ($key === 'leads-pending' && $pendingDueCount > 0): ?>
                     <span class="rounded-full bg-red-100 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-red-700" title="Due today or overdue (assigned to you)"><?= $pendingDueCount > 99 ? '99+' : $pendingDueCount ?></span>
+                <?php elseif ($key === 'leaves' && $pendingLeaveCount > 0): ?>
+                    <span class="rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-amber-700" title="Leave requests waiting for approval"><?= $pendingLeaveCount > 99 ? '99+' : $pendingLeaveCount ?></span>
                 <?php elseif ($key === 'tasks' && $myOpenTaskCount > 0): ?>
                     <span class="rounded-full bg-indigo-100 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-indigo-700"><?= $myOpenTaskCount > 99 ? '99+' : $myOpenTaskCount ?></span>
                 <?php endif; ?>
