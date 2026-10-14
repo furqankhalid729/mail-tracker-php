@@ -5,6 +5,7 @@ $nav = [
     ['campaigns', 'Campaigns', 'campaigns/index.php', 'megaphone'],
     ['inbox', 'Inbox', 'inbox/index.php', 'inbox'],
     ['tasks', 'Tasks', 'tasks/index.php', 'tasks'],
+    ['employees', 'Employees', 'employees/index.php', 'briefcase'],
     ['leads', 'Leads', 'leads/index.php', 'phone-out'],
     ['leads-pending', 'Pending tasks', 'leads/pending.php', 'calendar'],
     ['calls', 'Calls', 'calls/index.php', 'phone'],
@@ -17,6 +18,9 @@ $nav = [
 ];
 if (!can_see_calls()) {
     $nav = array_values(array_filter($nav, fn($item) => $item[0] !== 'calls'));
+}
+if (!allowed('employees.manage')) {
+    $nav = array_values(array_filter($nav, fn($item) => $item[0] !== 'employees'));
 }
 if (!allowed('reports.view')) {
     $nav = array_values(array_filter($nav, fn($item) => $item[0] !== 'reports'));

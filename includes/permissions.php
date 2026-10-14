@@ -41,6 +41,7 @@ const PERMISSIONS = [
     'calls.view_all' => 'admin',          // every closer's calls, combined and per-closer stats
     'calls.manage' => 'admin',            // connect Zoom, assign numbers to closers
     'leads.view_all' => 'manager',        // see every lead, not only those assigned to you
+    'employees.manage' => 'admin',        // employee records, statuses, contracts and documents
     'leads.manage' => 'admin',            // import, add, edit, assign and delete leads; define lead statuses
 ];
 

@@ -42,6 +42,7 @@ require_once __DIR__ . '/csv.php';
 require_once __DIR__ . '/customers.php';
 require_once __DIR__ . '/campaigns.php';
 require_once __DIR__ . '/tasks.php';
+require_once __DIR__ . '/employees.php';
 require_once __DIR__ . '/zoom.php';
 require_once __DIR__ . '/area_codes.php';
 require_once __DIR__ . '/leads.php';
