@@ -35,12 +35,14 @@ if (is_post()) {
         }
         if ($id) {
             db_update('lead_statuses', ['name' => $name, 'color' => $color, 'requires_date' => $requiresDate, 'in_pending' => $inPending, 'requires_approval' => $requiresApproval], 'id = ? AND workspace_id = ?', [$id, $ws]);
-            if ($requiresApproval && empty($statuses[$id]['requires_approval'])) {
-                // Turned on: leads already in this status now wait for approval
-                q("UPDATE leads SET approval_status = 'pending' WHERE workspace_id = ? AND status_id = ? AND approval_status IS NULL", [$ws, $id]);
-            } elseif (!$requiresApproval && !empty($statuses[$id]['requires_approval'])) {
-                // Turned off: nothing is waiting any more (earlier decisions stay on the timeline)
-                q('UPDATE leads SET approval_status = NULL, approval_by = NULL, approval_at = NULL, approval_note = NULL WHERE workspace_id = ? AND status_id = ?', [$ws, $id]);
+            if ((bool) $requiresApproval !== !empty($statuses[$id]['requires_approval'])) {
+                // Switched on: leads already in this status open a request (booked by whoever set the status).
+                // Switched off: their open requests are cancelled. Decided requests always stay for the report.
+                lead_statuses($ws, true);
+                $sql = $requiresApproval ? 'SELECT id FROM leads WHERE workspace_id = ? AND status_id = ? AND approval_id IS NULL' : 'SELECT id FROM leads WHERE workspace_id = ? AND status_id = ? AND approval_id IS NOT NULL';
+                foreach (array_map('intval', q_col($sql, [$ws, $id])) as $leadId) {
+                    lead_approval_sync($leadId, $id, $requiresApproval ? lead_status_setter($leadId, $name) : null);
+                }
             }
             flash('success', 'Status saved.');
         } else {
@@ -70,13 +72,17 @@ if (is_post()) {
                 $leadIds = array_map('intval', q_col('SELECT id FROM leads WHERE workspace_id = ? AND status_id = ?', [$ws, $id]));
                 foreach (array_chunk($leadIds, 1000) as $chunk) {
                     $in = placeholders($chunk);
-                    $approval = lead_approval_fields_for_status($moveTo, $ws)['approval_status'];
-                    q("UPDATE leads SET status_id = ?, approval_status = ?, approval_by = NULL, approval_at = NULL, approval_note = NULL, updated_at = ? WHERE workspace_id = ? AND id IN ($in)", [$moveTo, $approval, now(), $ws, ...$chunk]);
+                    q("UPDATE leads SET status_id = ?, updated_at = ? WHERE workspace_id = ? AND id IN ($in)", [$moveTo, now(), $ws, ...$chunk]);
                     q(
                         "INSERT INTO lead_activity (workspace_id, lead_id, user_id, type, from_label, to_label, body, created_at)
                          SELECT workspace_id, id, ?, 'status', ?, ?, 'Previous status was deleted', ? FROM leads WHERE workspace_id = ? AND id IN ($in)",
                         [user_id(), $statuses[$id]['name'], $statuses[$moveTo]['name'], now(), $ws, ...$chunk]
                     );
+                }
+                // Close open requests of the moved leads; open new ones if the new status needs approval
+                $moved = array_map('intval', q_col('SELECT id FROM leads WHERE workspace_id = ? AND id IN (' . ($leadIds ? placeholders($leadIds) : 'NULL') . ') AND (approval_id IS NOT NULL OR ?)', [$ws, ...$leadIds, (int) !empty($statuses[$moveTo]['requires_approval'])]));
+                foreach ($moved as $leadId) {
+                    lead_approval_sync($leadId, $moveTo, lead_status_setter($leadId, $statuses[$moveTo]['name']));
                 }
                 q('DELETE FROM lead_statuses WHERE id = ? AND workspace_id = ?', [$id, $ws]);
             });
@@ -182,7 +188,8 @@ require __DIR__ . '/../includes/header.php';
                 <span><span class="font-medium text-slate-700">Show on Pending tasks</span><span class="block text-xs text-slate-500">Leads with this status are listed on Leads → Pending tasks as a reminder.</span></span>
             </label>
             <label class="flex items-start gap-2 text-sm">
-                <input type="checkbox" name="requires_approval" value="1" class="checkbox mt-0.5" <?= old('requires_approval', $editing['requires_approval'] ?? 0) ? 'checked' : '' ?>>
+                <input type="checkbox" name="requires_approval" value="1" class="checkbox mt-0.5" <?= old('requires_approval', $editing['requires_approval'] ?? 0) ? 'checked' : '' ?>
+                       <?php if (!$editing): ?>x-effect="if (/appointment/i.test(name) && /book/i.test(name)) $el.checked = true"<?php endif; ?>>
                 <span><span class="font-medium text-slate-700">Needs Super Admin approval</span><span class="block text-xs text-slate-500">Leads set to this status (e.g. Appointment booked) wait until a Super Admin approves or disapproves them.</span></span>
             </label>
             <div class="flex items-center justify-between">

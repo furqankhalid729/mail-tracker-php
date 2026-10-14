@@ -36,9 +36,6 @@ if (is_post()) {
         flash_errors(['name' => 'Enter a name, or at least a phone, email or website.']);
         redirect(url('leads/edit.php', ['id' => $lead['id'] ?? null]));
     }
-    if (!$lead || (int) $lead['status_id'] !== (int) $data['status_id']) {
-        $data += lead_approval_fields_for_status($data['status_id'], $ws);
-    }
     $now = now();
     $id = transaction(function () use ($lead, $data, $phones, $ws, $now, $statuses) {
         if ($lead) {
@@ -58,6 +55,9 @@ if (is_post()) {
         lead_set_phones($ws, $id, $phones);
         return $id;
     });
+    if (!$lead || (int) $lead['status_id'] !== (int) $data['status_id']) {
+        lead_approval_sync($id, $data['status_id']); // entering an approval status opens a request
+    }
     leads_link_calls($ws, [$id]);
     clear_old_input();
     flash('success', $lead ? 'Lead saved.' : 'Lead added.');

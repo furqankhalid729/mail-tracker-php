@@ -452,6 +452,7 @@ CREATE TABLE IF NOT EXISTS leads (
     assigned_to INT UNSIGNED NULL,
     status_id INT UNSIGNED NULL,
     follow_up_on DATE NULL,
+    approval_id INT UNSIGNED NULL,
     approval_status ENUM('pending','approved','rejected') NULL,
     approval_by INT UNSIGNED NULL,
     approval_at DATETIME NULL,
@@ -485,7 +486,8 @@ CREATE TABLE IF NOT EXISTS leads (
     CONSTRAINT fk_leads_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
     CONSTRAINT fk_leads_assignee FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL,
     CONSTRAINT fk_leads_status FOREIGN KEY (status_id) REFERENCES lead_statuses(id) ON DELETE SET NULL,
-    CONSTRAINT fk_leads_approver FOREIGN KEY (approval_by) REFERENCES users(id) ON DELETE SET NULL
+    CONSTRAINT fk_leads_approver FOREIGN KEY (approval_by) REFERENCES users(id) ON DELETE SET NULL,
+    CONSTRAINT fk_leads_approval_req FOREIGN KEY (approval_id) REFERENCES lead_approvals(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- A lead can have several numbers. number_key = last 10 digits, matched against zoom_calls.external_key.
@@ -499,6 +501,33 @@ CREATE TABLE IF NOT EXISTS lead_phones (
     KEY idx_lp_lead (lead_id),
     CONSTRAINT fk_lp_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
     CONSTRAINT fk_lp_lead FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Approval requests for statuses that need a Super Admin (one per booking, kept for monthly per-closer counts)
+CREATE TABLE IF NOT EXISTS lead_approvals (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    workspace_id INT UNSIGNED NOT NULL,
+    lead_id INT UNSIGNED NULL,
+    lead_name VARCHAR(255) NOT NULL DEFAULT '',
+    status_id INT UNSIGNED NULL,
+    status_name VARCHAR(80) NOT NULL DEFAULT '',
+    booked_by INT UNSIGNED NULL,
+    booked_at DATETIME NOT NULL,
+    assigned_to INT UNSIGNED NULL,
+    decision ENUM('pending','approved','rejected','cancelled') NOT NULL DEFAULT 'pending',
+    note VARCHAR(500) NULL,
+    decided_by INT UNSIGNED NULL,
+    decided_at DATETIME NULL,
+    created_at DATETIME NOT NULL,
+    KEY idx_la_ws_booked (workspace_id, booked_at),
+    KEY idx_la_ws_closer (workspace_id, booked_by, booked_at),
+    KEY idx_la_lead (lead_id),
+    CONSTRAINT fk_lappr_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
+    CONSTRAINT fk_lappr_lead FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE SET NULL,
+    CONSTRAINT fk_lappr_status FOREIGN KEY (status_id) REFERENCES lead_statuses(id) ON DELETE SET NULL,
+    CONSTRAINT fk_lappr_booker FOREIGN KEY (booked_by) REFERENCES users(id) ON DELETE SET NULL,
+    CONSTRAINT fk_lappr_assignee FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL,
+    CONSTRAINT fk_lappr_decider FOREIGN KEY (decided_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Lead timeline: status changes (with optional note), notes, assignments, edits

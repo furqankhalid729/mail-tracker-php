@@ -72,7 +72,7 @@ if (is_post() && input('action') === 'process') {
                 $s['duplicates']++;
                 continue;
             }
-            $id = db_insert('leads', $data + lead_approval_fields_for_status($state['status_id'] ? (int) $state['status_id'] : null, $ws) + [
+            $id = db_insert('leads', $data + [
                 'workspace_id' => $ws,
                 'assigned_to' => $state['assigned_to'],
                 'status_id' => $state['status_id'],
@@ -85,6 +85,9 @@ if (is_post() && input('action') === 'process') {
             ]);
             lead_set_phones($ws, $id, $phones);
             log_lead_activity($id, 'imported', null, null, $state['name']);
+            if ($state['status_id'] && !empty(lead_statuses($ws)[(int) $state['status_id']]['requires_approval'])) {
+                lead_approval_sync($id, (int) $state['status_id'], $state['assigned_to'] ? (int) $state['assigned_to'] : null);
+            }
             $newIds[] = $id;
             $s['imported']++;
         }

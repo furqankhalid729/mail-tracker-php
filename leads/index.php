@@ -25,8 +25,8 @@ $order = sort_sql([
     'last_call' => 'l.last_call_at', 'created' => 'l.created_at',
 ], 'created', 'desc');
 $leads = q_all(
-    "SELECT l.*, a.name assignee_name, ap.name approver_name FROM leads l LEFT JOIN users a ON a.id = l.assigned_to
-     LEFT JOIN users ap ON ap.id = l.approval_by
+    "SELECT l.*, a.name assignee_name, ap.name approver_name, bk.name booked_by_name FROM leads l LEFT JOIN users a ON a.id = l.assigned_to
+     LEFT JOIN users ap ON ap.id = l.approval_by LEFT JOIN lead_approvals r ON r.id = l.approval_id LEFT JOIN users bk ON bk.id = r.booked_by
      WHERE $where ORDER BY $order, l.id DESC LIMIT ? OFFSET ?",
     [...$params, $p['per_page'], $p['offset']]
 );
@@ -65,6 +65,7 @@ require __DIR__ . '/../includes/header.php';
         <div class="flex flex-wrap gap-2">
             <a href="<?= e(url('leads/pending.php')) ?>" class="btn-secondary"><?= icon('calendar', 'h-4 w-4') ?> Pending tasks</a>
             <a href="<?= e(url('leads/statuses.php')) ?>" class="btn-secondary"><?= icon('tag', 'h-4 w-4') ?> Statuses</a>
+            <?php if (can_view_lead_approvals()): ?><a href="<?= e(url('leads/approvals.php')) ?>" class="btn-secondary"><?= icon('shield', 'h-4 w-4') ?> Approvals</a><?php endif; ?>
             <a href="<?= e(url('leads/import.php')) ?>" class="btn-secondary"><?= icon('upload', 'h-4 w-4') ?> Import CSV</a>
             <a href="<?= e(url('leads/edit.php')) ?>" class="btn-primary"><?= icon('plus', 'h-4 w-4') ?> Add lead</a>
         </div>

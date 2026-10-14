@@ -142,6 +142,9 @@ require __DIR__ . '/../includes/header.php';
         <div class="card <?= $state === 'pending' ? 'ring-2 ring-amber-300' : '' ?>">
             <div class="card-header"><h2 class="card-title">Approval</h2><?= lead_approval_badge($lead) ?></div>
             <div class="card-body space-y-3 text-sm">
+                <?php if ($lead['booked_by_name'] || $lead['booked_at']): ?>
+                    <p class="text-xs text-slate-500">Booked<?= $lead['booked_by_name'] ? ' by <b class="font-medium text-slate-700">' . e($lead['booked_by_name']) . '</b>' : '' ?><?= $lead['booked_at'] ? ' · ' . e(format_dt($lead['booked_at'])) : '' ?></p>
+                <?php endif; ?>
                 <?php if ($state === 'pending'): ?>
                     <p class="text-slate-600"><?= e($statuses[$lead['status_id']]['name'] ?? 'This status') ?> needs a Super Admin to approve or disapprove it.</p>
                 <?php else: ?>

@@ -69,7 +69,8 @@ if ($to) {
 $total = (int) q_val("SELECT COUNT(*) FROM leads l WHERE $where", $params);
 $p = paginate($total, per_page(25));
 $leads = q_all(
-    "SELECT l.*, a.name assignee_name, ap.name approver_name FROM leads l LEFT JOIN users a ON a.id = l.assigned_to LEFT JOIN users ap ON ap.id = l.approval_by
+    "SELECT l.*, a.name assignee_name, ap.name approver_name, bk.name booked_by_name FROM leads l LEFT JOIN users a ON a.id = l.assigned_to LEFT JOIN users ap ON ap.id = l.approval_by
+     LEFT JOIN lead_approvals r ON r.id = l.approval_id LEFT JOIN users bk ON bk.id = r.booked_by
      WHERE $where ORDER BY l.follow_up_on IS NULL, l.follow_up_on, l.updated_at DESC, l.id DESC LIMIT ? OFFSET ?",
     [...$params, $p['per_page'], $p['offset']]
 );
