@@ -27,7 +27,7 @@ $zoomEmbedUrl = 'https://applications.zoom.us/integration/phone/embeddablephone/
                 <iframe id="zoom-embeddable-phone-iframe" :src="src" @load="onLoad()"
                         allow="clipboard-read; clipboard-write https://applications.zoom.us" referrerpolicy="origin"
                         class="block origin-top-left border-0" :style="`width: ${FRAME_W}px; height: ${FRAME_H}px; transform: scale(${scale})`" title="Zoom Phone"></iframe>
-            </template>
+            </template>  
         </div>
     </div>
     <button type="button" x-show="src && !open" @click="open = true"
