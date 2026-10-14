@@ -44,10 +44,6 @@ $salary = trim((string) input('salary'));
 if ($salary !== '' && (!is_numeric($salary) || (float) $salary < 0 || (float) $salary >= 1e10)) {
     $errors['salary'] = 'Salary must be a positive amount.';
 }
-$currency = strtoupper(trim((string) input('salary_currency')));
-if ($currency !== '' && !preg_match('/^[A-Z]{3}$/', $currency)) {
-    $errors['salary_currency'] = 'Use a 3-letter currency code like USD or PKR.';
-}
 
 $code = trim((string) input('employee_code'));
 if ($code !== '' && q_val('SELECT 1 FROM employees WHERE workspace_id = ? AND employee_code = ? AND id <> ?', [$ws, $code, (int) ($existing['id'] ?? 0)])) {
@@ -85,7 +81,7 @@ $data = [
     'emergency_contact_name' => $text('emergency_contact_name'),
     'emergency_contact_phone' => $text('emergency_contact_phone'),
     'salary' => $salary !== '' ? round((float) $salary, 2) : null,
-    'salary_currency' => $currency ?: null,
+    'salary_currency' => APP_CURRENCY,
     'bank_details' => $text('bank_details'),
     'notes' => $text('notes'),
     'updated_at' => now(),

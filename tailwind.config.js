@@ -2,7 +2,7 @@
 module.exports = {
     content: [
         './*.php',
-        './{customers,campaigns,inbox,activity,templates,mail-accounts,tags,tasks,calls,leads,settings,unsubscribe,includes,employees,leaves,wiki,reports,inspector}/**/*.php',
+        './{customers,campaigns,inbox,activity,templates,mail-accounts,tags,tasks,calls,leads,settings,unsubscribe,includes,employees,leaves,wiki,reports,inspector,payroll,expenses}/**/*.php',
         './assets/js/**/*.js',
     ],
     theme: {

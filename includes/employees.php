@@ -55,56 +55,16 @@ function employee_departments(): array
     return q_col("SELECT DISTINCT department FROM employees WHERE workspace_id = ? AND department IS NOT NULL AND department <> '' ORDER BY department", [ws_id()]);
 }
 
-/**
- * Validate and store one uploaded file ($_FILES[$field]) for an employee.
- * Same rules as email attachments: size limit, extension allow-list, content sniffing.
- * Returns [fileColumns|null, error|null]; [null, null] when no file was chosen.
- */
+/** Store one uploaded document for an employee (see store_private_upload()). */
 function store_employee_file(string $field, int $wsId, int $employeeId): array
 {
-    $f = $_FILES[$field] ?? null;
-    if (!$f || is_array($f['name']) || $f['error'] === UPLOAD_ERR_NO_FILE) {
-        return [null, null];
-    }
-    $name = basename((string) $f['name']);
-    if ($f['error'] !== UPLOAD_ERR_OK) {
-        return [null, in_array($f['error'], [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true) ? "$name is too large." : "$name: upload failed (code {$f['error']})."];
-    }
-    if ($f['size'] > UPLOAD_LIMIT_MB * 1024 * 1024) {
-        return [null, "$name is larger than " . UPLOAD_LIMIT_MB . ' MB.'];
-    }
-    // Check every extension segment, so "contract.php.pdf" is rejected too
-    $parts = explode('.', strtolower($name));
-    $ext = count($parts) > 1 ? end($parts) : '';
-    if (array_intersect(array_slice($parts, 1), BLOCKED_EXTENSIONS) || !isset(ALLOWED_ATTACHMENT_TYPES[$ext])) {
-        return [null, "$name: file type not allowed."];
-    }
-    $mime = (string) (new finfo(FILEINFO_MIME_TYPE))->file($f['tmp_name']);
-    if (!in_array($mime, ALLOWED_ATTACHMENT_TYPES[$ext], true)) {
-        return [null, "$name: content does not match its extension ($mime)."];
-    }
-    $rel = 'employees/' . $wsId . '/' . $employeeId . '/' . random_token(16) . '.' . $ext;
-    upload_dir(dirname($rel));
-    if (!move_uploaded_file($f['tmp_name'], UPLOAD_PATH . '/' . $rel)) {
-        return [null, "$name could not be saved."];
-    }
-    return [[
-        'filename' => mb_substr(preg_replace('/[^\w.\- ()]+/u', '_', $name), 0, 255),
-        'mime_type' => $mime,
-        'size' => (int) $f['size'],
-        'storage_path' => $rel,
-    ], null];
+    return store_private_upload($field, "employees/$wsId/$employeeId");
 }
 
-/** Remove stored files from disk (after their rows are deleted). */
+/** Remove employee documents from disk (after their rows are deleted). */
 function delete_employee_files(array $storagePaths): void
 {
-    foreach (array_filter($storagePaths) as $rel) {
-        $path = UPLOAD_PATH . '/' . $rel;
-        if (str_starts_with($rel, 'employees/') && !str_contains($rel, '..') && is_file($path)) {
-            @unlink($path);
-        }
-    }
+    delete_private_uploads($storagePaths, 'employees/');
 }
 
 /** "Expires in 12 days" style label; red when expired, amber within 30 days. */

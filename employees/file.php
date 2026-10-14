@@ -9,21 +9,7 @@ require_auth();
 require_permission('employees.manage');
 
 $doc = find_or_404('employee_documents', input_int('id'));
-$rel = (string) $doc['storage_path'];
-$path = UPLOAD_PATH . '/' . $rel;
-if ($rel === '' || !str_starts_with($rel, 'employees/') || str_contains($rel, '..') || !is_file($path)) {
+if (!private_upload_path_ok($doc['storage_path'], 'employees/')) {
     abort(404, 'File not found.');
 }
-session_write_close();
-
-$inlineTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/gif', 'image/webp'];
-$inline = !input('download') && in_array($doc['mime_type'], $inlineTypes, true);
-$name = (string) $doc['filename'];
-$ascii = preg_replace('/[^\x20\x21\x23-\x5B\x5D-\x7E]/', '_', $name); // printable ASCII minus " and \
-
-header('Content-Type: ' . ($inline ? $doc['mime_type'] : 'application/octet-stream'));
-header('Content-Length: ' . filesize($path));
-header('Content-Disposition: ' . ($inline ? 'inline' : 'attachment') . '; filename="' . $ascii . '"; filename*=UTF-8\'\'' . rawurlencode($name));
-header('Cache-Control: private, no-store');
-readfile($path);
-exit;
+send_private_file($doc['storage_path'], (string) $doc['filename'], (string) $doc['mime_type'], (bool) input('download'));

@@ -6,6 +6,8 @@ $nav = [
     ['inbox', 'Inbox', 'inbox/index.php', 'inbox'],
     ['tasks', 'Tasks', 'tasks/index.php', 'tasks'],
     ['employees', 'Employees', 'employees/index.php', 'briefcase'],
+    ['payroll', 'Payroll', 'payroll/index.php', 'banknotes'],
+    ['expenses', 'Expenses', 'expenses/index.php', 'receipt'],
     ['leaves', 'Leave', 'leaves/index.php', 'sun'],
     ['wiki', 'Wiki', 'wiki/index.php', 'book'],
     ['leads', 'Leads', 'leads/index.php', 'phone-out'],
@@ -21,8 +23,10 @@ $nav = [
 if (!can_see_calls()) {
     $nav = array_values(array_filter($nav, fn($item) => $item[0] !== 'calls'));
 }
-if (!allowed('employees.manage')) {
-    $nav = array_values(array_filter($nav, fn($item) => $item[0] !== 'employees'));
+foreach (['employees' => 'employees.manage', 'payroll' => 'payroll.manage', 'expenses' => 'expenses.manage'] as $navKey => $perm) {
+    if (!allowed($perm)) {
+        $nav = array_values(array_filter($nav, fn($item) => $item[0] !== $navKey));
+    }
 }
 if (!allowed('reports.view')) {
     $nav = array_values(array_filter($nav, fn($item) => $item[0] !== 'reports'));
@@ -38,11 +42,12 @@ if (is_closer()) {
 $unread = (int) q_val('SELECT COUNT(*) FROM email_threads WHERE workspace_id = ? AND is_unread = 1', [ws_id()]);
 $myOpenTaskCount = my_open_task_count();
 $pendingLeaveCount = leave_pending_count();
+$subscriptionsDueCount = in_array('expenses', array_column($nav, 0), true) ? count(subscriptions_due_soon(7)) : 0;
 $pendingApprovalCount = in_array('leads', array_column($nav, 0), true) ? lead_pending_approval_count() : 0;
 $pendingDueCount = in_array('leads-pending', array_column($nav, 0), true) ? lead_pending_due_count() : 0;
 $myWorkspaces = q_all('SELECT w.id, w.name FROM workspaces w JOIN workspace_members m ON m.workspace_id = w.id WHERE m.user_id = ? ORDER BY w.name', [user_id()]);
 
-$renderNav = function () use ($nav, $active_nav, $unread, $myOpenTaskCount, $pendingLeaveCount, $pendingApprovalCount, $pendingDueCount, $myWorkspaces, $workspace) { ?>
+$renderNav = function () use ($nav, $active_nav, $unread, $myOpenTaskCount, $pendingLeaveCount, $subscriptionsDueCount, $pendingApprovalCount, $pendingDueCount, $myWorkspaces, $workspace) { ?>
     <div class="flex h-14 shrink-0 items-center gap-2.5 border-b border-slate-200 px-5">
         <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-sm"><?= icon('mail', 'h-4.5 w-4.5 h-[18px] w-[18px]') ?></span>
         <span class="text-[15px] font-semibold tracking-tight text-slate-900"><?= e(APP_NAME) ?></span>
@@ -74,6 +79,8 @@ $renderNav = function () use ($nav, $active_nav, $unread, $myOpenTaskCount, $pen
                     <span class="rounded-full bg-red-100 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-red-700" title="Due today or overdue (assigned to you)"><?= $pendingDueCount > 99 ? '99+' : $pendingDueCount ?></span>
                 <?php elseif ($key === 'leads' && $pendingApprovalCount > 0): ?>
                     <span class="rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-amber-700" title="Leads awaiting your approval"><?= $pendingApprovalCount > 99 ? '99+' : $pendingApprovalCount ?></span>
+                <?php elseif ($key === 'expenses' && $subscriptionsDueCount > 0): ?>
+                    <span class="rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-amber-700" title="Subscriptions due within 7 days"><?= $subscriptionsDueCount ?></span>
                 <?php elseif ($key === 'leaves' && $pendingLeaveCount > 0): ?>
                     <span class="rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-amber-700" title="Leave requests waiting for approval"><?= $pendingLeaveCount > 99 ? '99+' : $pendingLeaveCount ?></span>
                 <?php elseif ($key === 'tasks' && $myOpenTaskCount > 0): ?>

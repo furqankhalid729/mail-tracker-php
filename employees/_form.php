@@ -58,15 +58,10 @@ $isNew = empty($employee['id']);
         <div class="card">
             <div class="card-header"><h2 class="card-title">Pay</h2></div>
             <div class="card-body grid gap-4 sm:grid-cols-3">
-                <div class="sm:col-span-2">
-                    <label class="label" for="salary">Salary (monthly)</label>
-                    <input class="input" type="number" step="0.01" min="0" id="salary" name="salary" value="<?= e($v('salary')) ?>">
+                <div class="sm:col-span-3">
+                    <label class="label" for="salary">Monthly salary (<?= e(APP_CURRENCY) ?>)</label>
+                    <input class="input" type="number" step="0.01" min="0" id="salary" name="salary" value="<?= e($v('salary')) ?>" placeholder="85000">
                     <?= field_error($errors, 'salary') ?>
-                </div>
-                <div>
-                    <label class="label" for="salary_currency">Currency</label>
-                    <input class="input uppercase" id="salary_currency" name="salary_currency" value="<?= e($v('salary_currency')) ?>" maxlength="3" placeholder="USD">
-                    <?= field_error($errors, 'salary_currency') ?>
                 </div>
                 <div class="sm:col-span-3">
                     <label class="label" for="bank_details">Bank details</label>

@@ -173,7 +173,7 @@ $date = fn(?string $d) => $d ? format_dt($d, 'M j, Y') : null;
             <div class="card-header"><h2 class="card-title">Pay</h2></div>
             <dl class="divide-y divide-slate-100 text-sm">
                 <?php
-                $row('Monthly salary', $emp['salary'] !== null ? trim(($emp['salary_currency'] ?? '') . ' ' . number_format((float) $emp['salary'], 2)) : null);
+                $row('Monthly salary', $emp['salary'] !== null ? money($emp['salary'], $emp['salary_currency'] ?: APP_CURRENCY) : null);
                 $row('Bank details', $emp['bank_details']);
                 ?>
             </dl>

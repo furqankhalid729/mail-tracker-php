@@ -78,6 +78,8 @@ define('ZOOM_SMART_EMBED', (bool) env('ZOOM_SMART_EMBED', false));
 // Overridable only for testing against a mock server
 define('ZOOM_OAUTH_BASE', rtrim((string) env('ZOOM_OAUTH_BASE', 'https://zoom.us'), '/'));
 define('ZOOM_API_BASE', rtrim((string) env('ZOOM_API_BASE', 'https://api.zoom.us/v2'), '/'));
+// The one currency for salaries, payroll, expenses and subscriptions (amounts are entered and totalled in it)
+define('APP_CURRENCY', strtoupper((string) env('APP_CURRENCY', 'PKR')));
 // Website inspector (inspector/): optional Google PageSpeed Insights key (works without one, but with a low shared quota)
 define('PAGESPEED_API_KEY', (string) env('PAGESPEED_API_KEY', ''));
 // Branding on inspector PDF reports. REPORT_BRAND_LOGO is a path under the app folder to a light/white logo (PNG/JPG).
