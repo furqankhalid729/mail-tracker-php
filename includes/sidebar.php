@@ -7,6 +7,7 @@ $nav = [
     ['tasks', 'Tasks', 'tasks/index.php', 'tasks'],
     ['employees', 'Employees', 'employees/index.php', 'briefcase'],
     ['leaves', 'Leave', 'leaves/index.php', 'sun'],
+    ['wiki', 'Wiki', 'wiki/index.php', 'book'],
     ['leads', 'Leads', 'leads/index.php', 'phone-out'],
     ['leads-pending', 'Pending tasks', 'leads/pending.php', 'calendar'],
     ['calls', 'Calls', 'calls/index.php', 'phone'],
@@ -30,7 +31,7 @@ if (!can_see_leads()) {
     $nav = array_values(array_filter($nav, fn($item) => !in_array($item[0], ['leads', 'leads-pending'], true)));
 }
 if (is_closer()) {
-    $closerNav = ['leads', 'leads-pending', 'calls', 'inbox', 'customers', 'leaves', 'settings'];
+    $closerNav = ['leads', 'leads-pending', 'calls', 'inbox', 'customers', 'leaves', 'wiki', 'settings'];
     $nav = array_values(array_filter($nav, fn($item) => in_array($item[0], $closerNav, true)));
     usort($nav, fn($a, $b) => array_search($a[0], $closerNav) <=> array_search($b[0], $closerNav));
 }
