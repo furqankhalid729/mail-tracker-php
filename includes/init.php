@@ -45,6 +45,7 @@ require_once __DIR__ . '/tasks.php';
 require_once __DIR__ . '/employees.php';
 require_once __DIR__ . '/leaves.php';
 require_once __DIR__ . '/wiki.php';
+require_once __DIR__ . '/inspector.php';
 require_once __DIR__ . '/zoom.php';
 require_once __DIR__ . '/area_codes.php';
 require_once __DIR__ . '/leads.php';

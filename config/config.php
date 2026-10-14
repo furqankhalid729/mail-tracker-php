@@ -78,4 +78,11 @@ define('ZOOM_SMART_EMBED', (bool) env('ZOOM_SMART_EMBED', false));
 // Overridable only for testing against a mock server
 define('ZOOM_OAUTH_BASE', rtrim((string) env('ZOOM_OAUTH_BASE', 'https://zoom.us'), '/'));
 define('ZOOM_API_BASE', rtrim((string) env('ZOOM_API_BASE', 'https://api.zoom.us/v2'), '/'));
+// Website inspector (inspector/): optional Google PageSpeed Insights key (works without one, but with a low shared quota)
+define('PAGESPEED_API_KEY', (string) env('PAGESPEED_API_KEY', ''));
+// Branding on inspector PDF reports. REPORT_BRAND_LOGO is a path under the app folder to a light/white logo (PNG/JPG).
+define('REPORT_BRAND_NAME', (string) env('REPORT_BRAND_NAME', APP_NAME));
+define('REPORT_BRAND_URL', (string) env('REPORT_BRAND_URL', ''));
+define('REPORT_BRAND_EMAIL', (string) env('REPORT_BRAND_EMAIL', ''));
+define('REPORT_BRAND_LOGO', (string) env('REPORT_BRAND_LOGO', ''));
 define('ALLOW_REGISTRATION', (bool) env('ALLOW_REGISTRATION', true));

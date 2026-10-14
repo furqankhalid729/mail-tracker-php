@@ -41,6 +41,7 @@ const PERMISSIONS = [
     'calls.view_all' => 'admin',          // every closer's calls, combined and per-closer stats
     'calls.manage' => 'admin',            // connect Zoom, assign numbers to closers
     'leads.view_all' => 'manager',        // see every lead, not only those assigned to you
+    'inspector.use' => 'admin',           // website inspector at /inspector/ (speed, SEO, schema, technical audits + PDF)
     'wiki.manage' => 'admin',             // create, edit, move and delete wiki pages (everyone can read and search)
     'leaves.approve' => 'owner',          // see everyone's leave requests, approve or reject them
     'employees.manage' => 'admin',        // employee records, statuses, contracts and documents

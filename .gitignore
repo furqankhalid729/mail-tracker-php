@@ -8,6 +8,7 @@
 !/storage/logs/.gitkeep
 !/storage/logs/.htaccess
 /storage/installed.lock
+/storage/dompdf/
 /uploads/*
 !/uploads/.htaccess
 !/uploads/.gitkeep
