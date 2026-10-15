@@ -1,24 +1,33 @@
 <?php
 $nav = [
     ['dashboard', 'Dashboard', 'dashboard.php', 'home'],
-    ['customers', 'Customers', 'customers/index.php', 'users'],
-    ['campaigns', 'Campaigns', 'campaigns/index.php', 'megaphone'],
     ['inbox', 'Inbox', 'inbox/index.php', 'inbox'],
     ['tasks', 'Tasks', 'tasks/index.php', 'tasks'],
-    ['employees', 'Employees', 'employees/index.php', 'briefcase'],
-    ['payroll', 'Payroll', 'payroll/index.php', 'banknotes'],
-    ['expenses', 'Expenses', 'expenses/index.php', 'receipt'],
-    ['leaves', 'Leave', 'leaves/index.php', 'sun'],
-    ['wiki', 'Wiki', 'wiki/index.php', 'book'],
     ['leads', 'Leads', 'leads/index.php', 'phone-out'],
     ['leads-pending', 'Pending tasks', 'leads/pending.php', 'calendar'],
     ['calls', 'Calls', 'calls/index.php', 'phone'],
-    ['activity', 'Activity', 'activity/index.php', 'activity'],
-    ['reports', 'Reports', 'reports/index.php', 'chart'],
+    ['customers', 'Customers', 'customers/index.php', 'users'],
+    ['campaigns', 'Campaigns', 'campaigns/index.php', 'megaphone'],
     ['templates', 'Templates', 'templates/index.php', 'template'],
-    ['mail-accounts', 'Mail Accounts', 'mail-accounts/index.php', 'at'],
     ['tags', 'Tags', 'tags/index.php', 'tag'],
+    ['employees', 'Employees', 'employees/index.php', 'briefcase'],
+    ['leaves', 'Leave', 'leaves/index.php', 'sun'],
+    ['payroll', 'Payroll', 'payroll/index.php', 'banknotes'],
+    ['expenses', 'Expenses', 'expenses/index.php', 'receipt'],
+    ['reports', 'Reports', 'reports/index.php', 'chart'],
+    ['activity', 'Activity', 'activity/index.php', 'activity'],
+    ['wiki', 'Wiki', 'wiki/index.php', 'book'],
+    ['mail-accounts', 'Mail Accounts', 'mail-accounts/index.php', 'at'],
     ['settings', 'Settings', 'settings/index.php', 'cog'],
+];
+// Collapsible sidebar groups: group key => [label, icon, member nav keys]. Unlisted keys stay top-level.
+$navGroups = [
+    'sales' => ['Sales', 'phone-out', ['leads', 'leads-pending', 'calls', 'customers']],
+    'marketing' => ['Marketing', 'megaphone', ['campaigns', 'templates', 'tags']],
+    'people' => ['People', 'briefcase', ['employees', 'leaves']],
+    'finance' => ['Finance', 'banknotes', ['payroll', 'expenses']],
+    'insights' => ['Insights', 'chart', ['reports', 'activity']],
+    'admin' => ['Settings', 'cog', ['mail-accounts', 'settings']],
 ];
 if (!can_see_calls()) {
     $nav = array_values(array_filter($nav, fn($item) => $item[0] !== 'calls'));
@@ -47,7 +56,44 @@ $pendingApprovalCount = in_array('leads', array_column($nav, 0), true) ? lead_pe
 $pendingDueCount = in_array('leads-pending', array_column($nav, 0), true) ? lead_pending_due_count() : 0;
 $myWorkspaces = q_all('SELECT w.id, w.name FROM workspaces w JOIN workspace_members m ON m.workspace_id = w.id WHERE m.user_id = ? ORDER BY w.name', [user_id()]);
 
-$renderNav = function () use ($nav, $active_nav, $unread, $myOpenTaskCount, $pendingLeaveCount, $subscriptionsDueCount, $pendingApprovalCount, $pendingDueCount, $myWorkspaces, $workspace) { ?>
+$navBadges = [
+    'inbox' => [$unread, 'bg-indigo-600 text-white', ''],
+    'leads-pending' => [$pendingDueCount, 'bg-red-100 text-red-700', 'Due today or overdue (assigned to you)'],
+    'leads' => [$pendingApprovalCount, 'bg-amber-100 text-amber-700', 'Leads awaiting your approval'],
+    'expenses' => [$subscriptionsDueCount, 'bg-amber-100 text-amber-700', 'Subscriptions due within 7 days'],
+    'leaves' => [$pendingLeaveCount, 'bg-amber-100 text-amber-700', 'Leave requests waiting for approval'],
+    'tasks' => [$myOpenTaskCount, 'bg-indigo-100 text-indigo-700', ''],
+];
+// Build sections in the order their first item appears in $nav (keeps the closer ordering intact).
+$navSections = [];
+$navByKey = array_column($nav, null, 0);
+foreach ($nav as $item) {
+    $groupKey = null;
+    foreach ($navGroups as $gk => [, , $members]) {
+        if (in_array($item[0], $members, true)) { $groupKey = $gk; break; }
+    }
+    if ($groupKey === null) {
+        $navSections[] = ['item', $item];
+    } elseif (!isset($navSections['g:' . $groupKey])) {
+        $items = array_values(array_filter(array_map(fn($k) => $navByKey[$k] ?? null, $navGroups[$groupKey][2])));
+        $navSections['g:' . $groupKey] = count($items) === 1 ? ['item', $items[0]] : ['group', $groupKey, $items];
+    }
+}
+
+$renderBadge = function (int $count, string $cls, string $title) {
+    if ($count <= 0) return;
+    echo '<span class="rounded-full px-1.5 py-0.5 text-[11px] font-semibold leading-none ' . $cls . '"' . ($title !== '' ? ' title="' . e($title) . '"' : '') . '>' . ($count > 99 ? '99+' : $count) . '</span>';
+};
+$renderLink = function (array $item, bool $child = false) use ($active_nav, $pendingApprovalCount, $navBadges, $renderBadge) {
+    [$key, $label, $href, $ic] = $item; ?>
+    <a href="<?= e($key === 'leads' && $pendingApprovalCount ? url($href, ['approval' => 'pending']) : url($href)) ?>" class="nav-link <?= $active_nav === $key ? 'active' : '' ?> <?= $child ? 'py-1.5 pl-9 text-[13px]' : '' ?>">
+        <?= icon($ic, $child ? 'h-4 w-4 text-slate-400' : 'h-5 w-5 text-slate-400') ?>
+        <span class="flex-1"><?= e($label) ?></span>
+        <?php if (isset($navBadges[$key])) $renderBadge(...$navBadges[$key]); ?>
+    </a>
+<?php };
+
+$renderNav = function () use ($navSections, $navGroups, $navBadges, $active_nav, $renderLink, $renderBadge, $myWorkspaces, $workspace) { ?>
     <div class="flex h-14 shrink-0 items-center gap-2.5 border-b border-slate-200 px-5">
         <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-sm"><?= icon('mail', 'h-4.5 w-4.5 h-[18px] w-[18px]') ?></span>
         <span class="text-[15px] font-semibold tracking-tight text-slate-900"><?= e(APP_NAME) ?></span>
@@ -69,24 +115,28 @@ $renderNav = function () use ($nav, $active_nav, $unread, $myOpenTaskCount, $pen
         </div>
     </div>
     <nav class="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
-        <?php foreach ($nav as [$key, $label, $href, $ic]): ?>
-            <a href="<?= e($key === 'leads' && $pendingApprovalCount ? url($href, ['approval' => 'pending']) : url($href)) ?>" class="nav-link <?= $active_nav === $key ? 'active' : '' ?> <?= $key === 'leads-pending' ? 'pl-9 text-[13px]' : '' ?>">
-                <?= icon($ic, 'h-5 w-5 text-slate-400') ?>
-                <span class="flex-1"><?= e($label) ?></span>
-                <?php if ($key === 'inbox' && $unread > 0): ?>
-                    <span class="rounded-full bg-indigo-600 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-white"><?= $unread > 99 ? '99+' : $unread ?></span>
-                <?php elseif ($key === 'leads-pending' && $pendingDueCount > 0): ?>
-                    <span class="rounded-full bg-red-100 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-red-700" title="Due today or overdue (assigned to you)"><?= $pendingDueCount > 99 ? '99+' : $pendingDueCount ?></span>
-                <?php elseif ($key === 'leads' && $pendingApprovalCount > 0): ?>
-                    <span class="rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-amber-700" title="Leads awaiting your approval"><?= $pendingApprovalCount > 99 ? '99+' : $pendingApprovalCount ?></span>
-                <?php elseif ($key === 'expenses' && $subscriptionsDueCount > 0): ?>
-                    <span class="rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-amber-700" title="Subscriptions due within 7 days"><?= $subscriptionsDueCount ?></span>
-                <?php elseif ($key === 'leaves' && $pendingLeaveCount > 0): ?>
-                    <span class="rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-amber-700" title="Leave requests waiting for approval"><?= $pendingLeaveCount > 99 ? '99+' : $pendingLeaveCount ?></span>
-                <?php elseif ($key === 'tasks' && $myOpenTaskCount > 0): ?>
-                    <span class="rounded-full bg-indigo-100 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-indigo-700"><?= $myOpenTaskCount > 99 ? '99+' : $myOpenTaskCount ?></span>
-                <?php endif; ?>
-            </a>
+        <?php foreach ($navSections as $section): ?>
+            <?php if ($section[0] === 'item'): $renderLink($section[1]); continue; endif; ?>
+            <?php
+            [, $gk, $items] = $section;
+            [$gLabel, $gIcon] = $navGroups[$gk];
+            $gKeys = array_column($items, 0);
+            $gActive = in_array($active_nav, $gKeys, true);
+            $gCount = array_sum(array_map(fn($k) => $navBadges[$k][0] ?? 0, $gKeys));
+            $store = 'crm.nav.' . $gk;
+            ?>
+            <div x-data="{ open: <?= $gActive ? 'true' : "(() => { try { return localStorage.getItem('$store') === '1' } catch (e) { return false } })()" ?> }"
+                 x-effect="try { localStorage.setItem('<?= $store ?>', open ? '1' : '0') } catch (e) {}">
+                <button type="button" @click="open = !open" :aria-expanded="open" class="nav-link w-full text-left <?= $gActive ? 'text-slate-900' : '' ?>">
+                    <?= icon($gIcon, 'h-5 w-5 text-slate-400') ?>
+                    <span class="flex-1"><?= e($gLabel) ?></span>
+                    <?php if ($gCount > 0): ?><span x-show="!open"><?php $renderBadge($gCount, 'bg-amber-100 text-amber-700', ''); ?></span><?php endif; ?>
+                    <span class="transition-transform" :class="open ? 'rotate-180' : ''"><?= icon('chevron-down', 'h-4 w-4 text-slate-400') ?></span>
+                </button>
+                <div x-show="open" <?= $gActive ? '' : 'x-cloak' ?> class="mt-0.5 space-y-0.5">
+                    <?php foreach ($items as $item) $renderLink($item, true); ?>
+                </div>
+            </div>
         <?php endforeach; ?>
     </nav>
     <div class="border-t border-slate-200 p-4 text-xs text-slate-400">
