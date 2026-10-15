@@ -65,20 +65,24 @@ $navBadges = [
     'tasks' => [$myOpenTaskCount, 'bg-indigo-100 text-indigo-700', ''],
 ];
 // Build sections in the order their first item appears in $nav (keeps the closer ordering intact).
-$navSections = [];
-$navByKey = array_column($nav, null, 0);
-foreach ($nav as $item) {
-    $groupKey = null;
-    foreach ($navGroups as $gk => [, , $members]) {
-        if (in_array($item[0], $members, true)) { $groupKey = $gk; break; }
+// Built inside a closure so its loop variables can't clobber the including page's variables.
+$navSections = (function () use ($nav, $navGroups) {
+    $sections = [];
+    $byKey = array_column($nav, null, 0);
+    foreach ($nav as $item) {
+        $groupKey = null;
+        foreach ($navGroups as $gk => [, , $members]) {
+            if (in_array($item[0], $members, true)) { $groupKey = $gk; break; }
+        }
+        if ($groupKey === null) {
+            $sections[] = ['item', $item];
+        } elseif (!isset($sections['g:' . $groupKey])) {
+            $items = array_values(array_filter(array_map(fn($k) => $byKey[$k] ?? null, $navGroups[$groupKey][2])));
+            $sections['g:' . $groupKey] = count($items) === 1 ? ['item', $items[0]] : ['group', $groupKey, $items];
+        }
     }
-    if ($groupKey === null) {
-        $navSections[] = ['item', $item];
-    } elseif (!isset($navSections['g:' . $groupKey])) {
-        $items = array_values(array_filter(array_map(fn($k) => $navByKey[$k] ?? null, $navGroups[$groupKey][2])));
-        $navSections['g:' . $groupKey] = count($items) === 1 ? ['item', $items[0]] : ['group', $groupKey, $items];
-    }
-}
+    return $sections;
+})();
 
 $renderBadge = function (int $count, string $cls, string $title) {
     if ($count <= 0) return;
