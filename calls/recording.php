@@ -28,17 +28,27 @@ if (!$conn || $conn['status'] === 'disconnected') {
 }
 session_write_close(); // don't hold the session lock while audio streams
 
-/** One request to Zoom; streams a 2xx body straight to the browser. Returns [status, Location header]. */
-$fetch = function (string $token) use ($call): array {
+$range = isset($_SERVER['HTTP_RANGE']) && preg_match('/^bytes=[\d,\s-]+$/', $_SERVER['HTTP_RANGE']) ? $_SERVER['HTTP_RANGE'] : null;
+
+/**
+ * One request to Zoom; streams a 2xx body straight to the browser. Returns [status, Location header, error body].
+ * $tokenInQuery sends the token as ?access_token= (some Zoom download hosts reject the Authorization header).
+ */
+$fetch = function (string $token, ?string $range, bool $tokenInQuery = false) use ($call): array {
     $status = 0;
     $location = '';
+    $errorBody = '';
     $sentHeaders = false;
     $passHeaders = [];
-    $ch = curl_init($call['recording_url']);
+    $url = $call['recording_url'];
+    if ($tokenInQuery) {
+        $url .= (str_contains($url, '?') ? '&' : '?') . 'access_token=' . rawurlencode($token);
+    }
+    $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_HTTPHEADER => array_filter([
-            'Authorization: Bearer ' . $token,
-            isset($_SERVER['HTTP_RANGE']) && preg_match('/^bytes=[\d,\s-]+$/', $_SERVER['HTTP_RANGE']) ? 'Range: ' . $_SERVER['HTTP_RANGE'] : null,
+            $tokenInQuery ? null : 'Authorization: Bearer ' . $token,
+            $range ? 'Range: ' . $range : null,
         ]),
         CURLOPT_FOLLOWLOCATION => false,
         CURLOPT_CONNECTTIMEOUT => 10,
@@ -57,9 +67,10 @@ $fetch = function (string $token) use ($call): array {
             }
             return strlen($line);
         },
-        CURLOPT_WRITEFUNCTION => function ($ch, string $chunk) use (&$status, &$sentHeaders, &$passHeaders) {
+        CURLOPT_WRITEFUNCTION => function ($ch, string $chunk) use (&$status, &$sentHeaders, &$passHeaders, &$errorBody) {
             if ($status < 200 || $status >= 300) {
-                return strlen($chunk); // error / redirect body: discard
+                $errorBody = mb_substr($errorBody . $chunk, 0, 1000); // keep Zoom's reason for the log
+                return strlen($chunk);
             }
             if (!$sentHeaders) {
                 http_response_code($status);
@@ -76,13 +87,21 @@ $fetch = function (string $token) use ($call): array {
     ]);
     curl_exec($ch);
     curl_close($ch);
-    return [$status, $location];
+    return [$status, $location, $errorBody];
 };
 
 try {
-    [$status, $location] = $fetch(zoom_access_token($conn));
+    $token = zoom_access_token($conn);
+    [$status, $location, $errorBody] = $fetch($token, $range);
     if ($status === 401) {
-        [$status, $location] = $fetch(zoom_access_token($conn, true));
+        $token = zoom_access_token($conn, true);
+        [$status, $location, $errorBody] = $fetch($token, $range);
+    }
+    if ($status === 400 && $range) {
+        [$status, $location, $errorBody] = $fetch($token, null); // Zoom rejects some Range requests
+    }
+    if ($status >= 400 && $status < 500 && $status !== 404) {
+        [$status, $location, $errorBody] = $fetch($token, null, true);
     }
 } catch (Throwable $e) {
     app_log('error', 'Zoom recording: ' . $e->getMessage(), ['call' => $call['id']]);
@@ -95,7 +114,8 @@ if ($status >= 300 && $status < 400 && str_starts_with($location, 'https://')) {
     exit;
 }
 if ($status < 200 || $status >= 300) {
-    app_log('warning', "Zoom recording download failed (HTTP $status)", ['call' => $call['id']]);
-    abort($status === 404 ? 404 : 502, $status === 404 ? 'Zoom no longer has this recording.' : "Zoom refused the recording (HTTP $status). Check the Zoom app's recording scopes.");
+    $reason = $errorBody !== '' ? (json_decode($errorBody, true)['message'] ?? trim(strip_tags($errorBody))) : '';
+    app_log('warning', "Zoom recording download failed (HTTP $status)", ['call' => $call['id'], 'url' => $call['recording_url'], 'zoom' => $errorBody]);
+    abort($status === 404 ? 404 : 502, $status === 404 ? 'Zoom no longer has this recording.' : "Zoom refused the recording (HTTP $status)" . ($reason !== '' ? ': ' . mb_substr($reason, 0, 300) : ". Check the Zoom app's recording scopes."));
 }
 exit;
