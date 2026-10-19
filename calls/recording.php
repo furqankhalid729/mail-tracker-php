@@ -30,24 +30,17 @@ session_write_close(); // don't hold the session lock while audio streams
 
 $range = isset($_SERVER['HTTP_RANGE']) && preg_match('/^bytes=[\d,\s-]+$/', $_SERVER['HTTP_RANGE']) ? $_SERVER['HTTP_RANGE'] : null;
 
-/**
- * One request to Zoom; streams a 2xx body straight to the browser. Returns [status, Location header, error body].
- * $tokenInQuery sends the token as ?access_token= (some Zoom download hosts reject the Authorization header).
- */
-$fetch = function (string $token, ?string $range, bool $tokenInQuery = false) use ($call): array {
+/** One request to Zoom; streams a 2xx body straight to the browser. Returns [status, Location header, error body]. */
+$fetch = function (string $token, ?string $range) use ($call): array {
     $status = 0;
     $location = '';
     $errorBody = '';
     $sentHeaders = false;
     $passHeaders = [];
-    $url = $call['recording_url'];
-    if ($tokenInQuery) {
-        $url .= (str_contains($url, '?') ? '&' : '?') . 'access_token=' . rawurlencode($token);
-    }
-    $ch = curl_init($url);
+    $ch = curl_init($call['recording_url']);
     curl_setopt_array($ch, [
         CURLOPT_HTTPHEADER => array_filter([
-            $tokenInQuery ? null : 'Authorization: Bearer ' . $token,
+            'Authorization: Bearer ' . $token,
             $range ? 'Range: ' . $range : null,
         ]),
         CURLOPT_FOLLOWLOCATION => false,
@@ -99,9 +92,6 @@ try {
     }
     if ($status === 400 && $range) {
         [$status, $location, $errorBody] = $fetch($token, null); // Zoom rejects some Range requests
-    }
-    if ($status >= 400 && $status < 500 && $status !== 404) {
-        [$status, $location, $errorBody] = $fetch($token, null, true);
     }
 } catch (Throwable $e) {
     app_log('error', 'Zoom recording: ' . $e->getMessage(), ['call' => $call['id']]);
