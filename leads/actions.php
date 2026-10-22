@@ -6,10 +6,13 @@
  *   note    id, note
  *   email   id, email                   open the CRM email composer for one of the lead's emails
  *                                       (reuses the customer with that email, or creates one from the lead)
+ *   to_customers  id[, tags[]][, new_tag]  add every email on the lead to Customers (existing customers reused),
+ *                                       tagged with tags[] / new_tag; the lead itself stays. No email = skipped
  *   assign  id, user_id (0 = unassign)  leads.manage
  *   delete  id                          leads.manage
  *   approve / disapprove  id[, note]    leads.approve (Super Admin), for leads awaiting approval
  *   bulk    ids[] | all_matching + filters, bulk = set_status [+ follow_up_on] | assign | delete | approve | disapprove
+ *                                       | to_customers [+ tags[], new_tag]
  */
 require_once __DIR__ . '/../includes/init.php';
 require_auth();
@@ -73,6 +76,9 @@ if ($action === 'bulk') {
             $n++;
         }
         flash($n ? 'success' : 'error', $n ? number_format($n) . ' lead' . ($n === 1 ? '' : 's') . ($bulk === 'approve' ? ' approved.' : ' disapproved.') : 'None of the selected leads are awaiting approval.');
+    } elseif ($bulk === 'to_customers') {
+        $result = leads_to_customers($ws, $where, $params, lead_customer_tags_from_input($ws));
+        flash($result['leads'] ? 'success' : 'error', leads_to_customers_message($result));
     } elseif ($bulk === 'delete') {
         $ids = array_map('intval', q_col("SELECT l.id FROM leads l WHERE $where", $params));
         foreach (array_chunk($ids, 1000) as $chunk) {
@@ -114,28 +120,16 @@ switch ($action) {
             flash('error', 'That email is not on this lead.');
             break;
         }
-        $customerId = (int) q_val('SELECT id FROM customers WHERE workspace_id = ? AND email = ? ORDER BY id LIMIT 1', [$ws, $email]);
-        if (!$customerId) {
-            $phones = phones_for_leads([$id])[$id] ?? [];
-            $now = now();
-            $customerId = db_insert('customers', customer_data_from_input([
-                'email' => $email,
-                'company' => $lead['name'],
-                'phone' => $phones[0]['phone_number'] ?? '',
-                'website' => $lead['website'] ?? '',
-                'source' => mb_substr('Lead' . ($lead['source'] ? ': ' . $lead['source'] : ''), 0, 100),
-            ]) + [
-                'workspace_id' => $ws,
-                'status' => 'active',
-                'crm_status' => 'New',
-                'created_at' => $now,
-                'updated_at' => $now,
-                'last_activity_at' => $now,
-            ]);
-            log_activity($ws, 'created', 'Created from lead "' . $lead['name'] . '"', $customerId);
+        [$customerId, $created] = lead_customer_for_email($ws, $lead, $email, phones_for_leads([$id])[$id] ?? []);
+        if ($created) {
             log_lead_activity($id, 'note', 'Added ' . $email . ' as a customer to email them.');
         }
         redirect(url('customers/email.php', ['customer_id' => $customerId]));
+
+    case 'to_customers':
+        $result = leads_to_customers($ws, 'l.workspace_id = ? AND l.id = ?', [$ws, $id], lead_customer_tags_from_input($ws));
+        flash($result['leads'] ? 'success' : 'error', leads_to_customers_message($result));
+        break;
 
     case 'assign':
         require_permission('leads.manage');

@@ -715,3 +715,96 @@ function lead_last_call_badge(array $lead): string
     return '<span class="block whitespace-nowrap text-xs text-slate-600">' . e(time_ago($lead['last_call_at'])) . '</span>'
         . call_result_badge($result, in_array($result, ZOOM_CONNECTED_RESULTS, true));
 }
+
+/* ---------------------------------------------------------------------------
+ * Leads → customers (so they can be emailed and put in campaigns; the lead stays as it is)
+ * ------------------------------------------------------------------------- */
+
+/** Customer id for one of a lead's emails: the existing customer with that email, or a new one built from the lead. Returns [id, created]. */
+function lead_customer_for_email(int $wsId, array $lead, string $email, array $phones): array
+{
+    $id = (int) q_val('SELECT id FROM customers WHERE workspace_id = ? AND email = ? ORDER BY id LIMIT 1', [$wsId, $email]);
+    if ($id) {
+        return [$id, false];
+    }
+    $now = now();
+    $id = db_insert('customers', customer_data_from_input([
+        'email' => $email,
+        'company' => $lead['name'],
+        'phone' => $phones[0]['phone_number'] ?? '',
+        'website' => $lead['website'] ?? '',
+        'source' => mb_substr('Lead' . ($lead['source'] ? ': ' . $lead['source'] : ''), 0, 100),
+    ]) + [
+        'workspace_id' => $wsId,
+        'status' => 'active',
+        'crm_status' => 'New',
+        'created_at' => $now,
+        'updated_at' => $now,
+        'last_activity_at' => $now,
+    ]);
+    log_activity($wsId, 'created', 'Created from lead "' . $lead['name'] . '"', $id);
+    return [$id, true];
+}
+
+/**
+ * Add every email on the matching leads to Customers and give those customers $tagIds (on top of their
+ * existing tags). Leads without a valid email are skipped. $where/$params as from lead_filter_sql().
+ * Returns ['leads' => converted, 'created' => new customers, 'existing' => already customers, 'skipped' => leads with no email].
+ */
+function leads_to_customers(int $wsId, string $where, array $params, array $tagIds): array
+{
+    $out = ['leads' => 0, 'created' => 0, 'existing' => 0, 'skipped' => 0];
+    $tagNames = $tagIds ? q_col('SELECT name FROM tags WHERE workspace_id = ? AND id IN (' . placeholders($tagIds) . ') ORDER BY name', [$wsId, ...$tagIds]) : [];
+    $ids = array_map('intval', q_col("SELECT l.id FROM leads l WHERE $where", $params));
+    foreach (array_chunk($ids, 500) as $chunk) {
+        transaction(function () use ($wsId, $chunk, $tagIds, $tagNames, &$out) {
+            $leads = q_all('SELECT id, name, emails, website, source FROM leads WHERE workspace_id = ? AND id IN (' . placeholders($chunk) . ')', [$wsId, ...$chunk]);
+            $phones = phones_for_leads($chunk);
+            $now = now();
+            foreach ($leads as $lead) {
+                $emails = array_values(array_filter(
+                    array_map(fn($e) => strtolower(trim($e)), explode(';', (string) $lead['emails'])),
+                    fn($e) => $e !== '' && strlen($e) <= 190 && filter_var($e, FILTER_VALIDATE_EMAIL)
+                ));
+                if (!$emails) {
+                    $out['skipped']++;
+                    continue;
+                }
+                foreach ($emails as $email) {
+                    [$customerId, $created] = lead_customer_for_email($wsId, $lead, $email, $phones[$lead['id']] ?? []);
+                    $out[$created ? 'created' : 'existing']++;
+                    foreach ($tagIds as $t) {
+                        q('INSERT IGNORE INTO customer_tags (customer_id, tag_id, workspace_id, created_at) VALUES (?, ?, ?, ?)', [$customerId, $t, $wsId, $now]);
+                    }
+                }
+                log_lead_activity((int) $lead['id'], 'note', 'Added to customers: ' . implode(', ', $emails) . ($tagNames ? "\nTags: " . implode(', ', $tagNames) : ''));
+                $out['leads']++;
+            }
+        });
+    }
+    return $out;
+}
+
+/** Flash message for a leads_to_customers() result. */
+function leads_to_customers_message(array $r): string
+{
+    $plural = fn(int $n, string $word) => number_format($n) . " $word" . ($n === 1 ? '' : 's');
+    if (!$r['leads']) {
+        return $r['skipped'] === 1 ? 'This lead has no email, so it was not added to customers.' : 'None of the selected leads have an email, so nothing was added.';
+    }
+    $msg = $plural($r['leads'], 'lead') . ' added to customers (' . number_format($r['created']) . ' new'
+        . ($r['existing'] ? ', ' . number_format($r['existing']) . ' already there' : '') . ').';
+    return $msg . ($r['skipped'] ? ' ' . $plural($r['skipped'], 'lead') . ' without an email skipped.' : '');
+}
+
+/** Tag ids picked when adding leads to customers: checked tags[] plus new_tag (found or created by name). */
+function lead_customer_tags_from_input(int $wsId): array
+{
+    $ids = owned_ids('tags', input_ids('tags'));
+    $name = mb_substr(trim((string) input('new_tag')), 0, 80);
+    if ($name !== '') {
+        $id = (int) q_val('SELECT id FROM tags WHERE workspace_id = ? AND name = ?', [$wsId, $name]);
+        $ids[] = $id ?: db_insert('tags', ['workspace_id' => $wsId, 'name' => $name, 'created_at' => now(), 'updated_at' => now()]);
+    }
+    return array_values(array_unique(array_map('intval', $ids)));
+}

@@ -25,6 +25,12 @@ $activity = q_all(
 );
 $manage = allowed('leads.manage');
 $members = $manage ? workspace_users() : [];
+$emails = array_values(array_filter(explode('; ', (string) $lead['emails'])));
+$customersByEmail = $emails ? array_column(q_all(
+    'SELECT LOWER(email) email, MIN(id) id FROM customers WHERE workspace_id = ? AND email IN (' . placeholders($emails) . ') GROUP BY LOWER(email)',
+    [$ws, ...$emails]
+), 'id', 'email') : [];
+$allTags = workspace_tags($ws);
 
 $page_title = $lead['name'];
 $active_nav = 'leads';
@@ -79,10 +85,11 @@ require __DIR__ . '/../includes/header.php';
                 <div>
                     <dt class="text-xs font-medium text-slate-500">Emails</dt>
                     <dd class="mt-1 space-y-1">
-                        <?php foreach (array_filter(explode('; ', (string) $lead['emails'])) as $em): ?>
+                        <?php foreach ($emails as $em): ?>
                             <form method="post" action="<?= e(url('leads/actions.php')) ?>" class="flex items-center justify-between gap-2">
                                 <?= csrf_field() ?><input type="hidden" name="action" value="email"><input type="hidden" name="id" value="<?= $id ?>"><input type="hidden" name="email" value="<?= e($em) ?>">
                                 <span class="min-w-0 truncate text-slate-900" title="<?= e($em) ?>"><?= e($em) ?></span>
+                                <?php if (isset($customersByEmail[strtolower($em)])): ?><a href="<?= e(url('customers/view.php', ['id' => $customersByEmail[strtolower($em)]])) ?>" class="ml-auto shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 hover:underline">Customer</a><?php endif; ?>
                                 <button class="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-indigo-600 hover:underline"><?= icon('send', 'h-3.5 w-3.5') ?> Send email</button>
                             </form>
                         <?php endforeach; ?>
@@ -190,6 +197,28 @@ require __DIR__ . '/../includes/header.php';
                 <button class="btn-primary w-full">Save</button>
             </div>
         </form>
+
+        <?php if ($emails): $inCustomers = count(array_intersect(array_map('strtolower', $emails), array_keys($customersByEmail))); ?>
+        <form method="post" action="<?= e(url('leads/actions.php')) ?>" class="card">
+            <?= csrf_field() ?><input type="hidden" name="action" value="to_customers"><input type="hidden" name="id" value="<?= $id ?>">
+            <div class="card-header"><h2 class="card-title">Customers</h2><a href="<?= e(url('tags/index.php')) ?>" class="text-xs font-medium text-indigo-600">Manage tags</a></div>
+            <div class="card-body space-y-3">
+                <p class="text-xs text-slate-500"><?= $inCustomers ? number_format($inCustomers) . ' of ' . count($emails) . ' email' . (count($emails) === 1 ? ' is' : 's are') . ' already in Customers.' : 'Add this lead\'s ' . (count($emails) === 1 ? 'email' : count($emails) . ' emails') . ' to Customers so you can mail them.' ?> The lead stays here.</p>
+                <?php if ($allTags): ?>
+                    <div class="flex flex-wrap gap-2">
+                        <?php foreach ($allTags as $t): ?>
+                            <label class="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-slate-200 px-2.5 py-1 text-xs has-[:checked]:border-indigo-400 has-[:checked]:bg-indigo-50">
+                                <input type="checkbox" class="checkbox !h-3.5 !w-3.5" name="tags[]" value="<?= (int) $t['id'] ?>">
+                                <span class="h-2 w-2 rounded-full" style="background: <?= e($t['color']) ?>"></span><?= e($t['name']) ?>
+                            </label>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+                <input type="text" name="new_tag" maxlength="80" class="input" placeholder="New tag (optional)">
+                <button class="btn-primary w-full"><?= icon('users', 'h-4 w-4') ?> <?= $inCustomers === count($emails) ? 'Update tags' : 'Add to customers' ?></button>
+            </div>
+        </form>
+        <?php endif; ?>
 
         <div class="card">
             <div class="card-header"><h2 class="card-title">Assigned to</h2></div>

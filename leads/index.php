@@ -50,6 +50,7 @@ $chipUrl = fn(?string $status) => url('leads/index.php', array_merge(array_diff_
 $approvalCounts = array_column(q_all("SELECT l.approval_status, COUNT(*) n FROM leads l WHERE $whereNoApproval AND l.approval_status IS NOT NULL GROUP BY l.approval_status", $paramsNoApproval), 'n', 'approval_status');
 $approvalUrl = fn(?string $state) => url('leads/index.php', array_merge(array_diff_key($filters, ['approval' => 1]), ['approval' => $state, 'sort' => input('sort'), 'dir' => input('dir')]));
 $canApprove = allowed('leads.approve');
+$allTags = workspace_tags($ws);
 $tzUrl = fn(?string $tz) => url('leads/index.php', array_merge(array_diff_key($filters, ['tz' => 1]), ['tz' => $tz, 'sort' => input('sort'), 'dir' => input('dir')]));
 
 $page_title = 'Leads';
@@ -212,6 +213,7 @@ require __DIR__ . '/../includes/header.php';
             <select name="bulk" x-model="bulk" class="input !w-auto !py-1.5" required>
                 <option value="">Choose action…</option>
                 <option value="set_status">Set status</option>
+                <option value="to_customers">Add to customers</option>
                 <?php if ($canApprove): ?><option value="approve">Approve</option><option value="disapprove">Disapprove</option><?php endif; ?>
                 <?php if ($manage): ?><option value="assign">Assign to</option><option value="delete">Delete</option><?php endif; ?>
             </select>
@@ -221,6 +223,23 @@ require __DIR__ . '/../includes/header.php';
             <template x-if="bulk === 'set_status' && bulkNeedsDate">
                 <input type="date" name="follow_up_on" min="<?= date('Y-m-d') ?>" required class="input !w-auto !py-1.5" aria-label="Follow-up date">
             </template>
+            <div x-show="bulk === 'to_customers'" class="relative" x-data="{ open: false }" @click.outside="open = false">
+                <button type="button" class="btn-secondary btn-sm" @click="open = !open"><?= icon('tag', 'h-3.5 w-3.5') ?> Tags <span x-text="open ? '▴' : '▾'"></span></button>
+                <div x-show="open" x-cloak class="absolute right-0 z-20 mt-1 w-72 space-y-3 rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
+                    <?php if ($allTags): ?>
+                        <div class="flex max-h-48 flex-wrap gap-2 overflow-y-auto">
+                            <?php foreach ($allTags as $t): ?>
+                                <label class="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-slate-200 px-2.5 py-1 text-xs has-[:checked]:border-indigo-400 has-[:checked]:bg-indigo-50">
+                                    <input type="checkbox" class="checkbox !h-3.5 !w-3.5" name="tags[]" value="<?= (int) $t['id'] ?>">
+                                    <span class="h-2 w-2 rounded-full" style="background: <?= e($t['color']) ?>"></span><?= e($t['name']) ?>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                    <input type="text" name="new_tag" maxlength="80" class="input !py-1.5 text-sm" placeholder="New tag (optional)">
+                    <p class="text-xs text-slate-500">Each email on a lead becomes a customer. Leads without an email are skipped and every lead stays in Leads.</p>
+                </div>
+            </div>
             <?php if ($manage): ?>
                 <select name="user_id" x-show="bulk === 'assign'" class="input !w-auto !py-1.5">
                     <?php foreach ($members as $m): ?><option value="<?= (int) $m['id'] ?>"><?= e($m['name']) ?><?= $m['role'] === 'closer' ? '' : ' (' . e(role_label($m['role'])) . ')' ?></option><?php endforeach; ?>
