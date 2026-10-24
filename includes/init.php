@@ -44,6 +44,7 @@ require_once __DIR__ . '/customers.php';
 require_once __DIR__ . '/campaigns.php';
 require_once __DIR__ . '/openrouter.php';
 require_once __DIR__ . '/ai-mail.php';
+require_once __DIR__ . '/ai-campaigns.php';
 require_once __DIR__ . '/tasks.php';
 require_once __DIR__ . '/employees.php';
 require_once __DIR__ . '/finance.php';
