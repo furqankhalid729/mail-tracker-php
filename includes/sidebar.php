@@ -8,6 +8,7 @@ $nav = [
     ['calls', 'Calls', 'calls/index.php', 'phone'],
     ['customers', 'Customers', 'customers/index.php', 'users'],
     ['campaigns', 'Campaigns', 'campaigns/index.php', 'megaphone'],
+    ['ai-campaigns', 'AI Campaigns', 'ai-campaigns/index.php', 'sparkles'],
     ['templates', 'Templates', 'templates/index.php', 'template'],
     ['tags', 'Tags', 'tags/index.php', 'tag'],
     ['employees', 'Employees', 'employees/index.php', 'briefcase'],
@@ -23,7 +24,7 @@ $nav = [
 // Collapsible sidebar groups: group key => [label, icon, member nav keys]. Unlisted keys stay top-level.
 $navGroups = [
     'sales' => ['Sales', 'phone-out', ['leads', 'leads-pending', 'calls', 'customers']],
-    'marketing' => ['Marketing', 'megaphone', ['campaigns', 'templates', 'tags']],
+    'marketing' => ['Marketing', 'megaphone', ['campaigns', 'ai-campaigns', 'templates', 'tags']],
     'people' => ['People', 'briefcase', ['employees', 'leaves']],
     'finance' => ['Finance', 'banknotes', ['payroll', 'expenses']],
     'insights' => ['Insights', 'chart', ['reports', 'activity']],

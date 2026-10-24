@@ -9,6 +9,62 @@ declare(strict_types=1);
  *       → ready drafts become email_messages (queued, ai_campaign_id) + email_jobs → existing sender delivers them
  */
 
+/** Add every customer matching $filters (customer_filter_sql format). INSERT IGNORE: never duplicates. */
+function ai_add_contacts_by_filter(int $wsId, int $aiCampaignId, array $filters): int
+{
+    [$where, $params] = customer_filter_sql($wsId, $filters);
+    $now = now();
+    return q(
+        "INSERT IGNORE INTO ai_campaign_contacts (workspace_id, ai_campaign_id, customer_id, draft_status, created_at, updated_at)
+         SELECT ?, ?, c.id, 'pending', ?, ? FROM customers c WHERE $where",
+        [$wsId, $aiCampaignId, $now, $now, ...$params]
+    )->rowCount();
+}
+
+/** Add individual customers (only this workspace's active, subscribed ones). Returns how many were new. */
+function ai_add_contacts(int $wsId, int $aiCampaignId, array $customerIds): int
+{
+    $ids = array_values(array_filter(array_map('intval', $customerIds)));
+    if (!$ids) {
+        return 0;
+    }
+    $ids = array_slice($ids, 0, 1000);
+    $now = now();
+    return q(
+        "INSERT IGNORE INTO ai_campaign_contacts (workspace_id, ai_campaign_id, customer_id, draft_status, created_at, updated_at)
+         SELECT ?, ?, c.id, 'pending', ?, ? FROM customers c
+         WHERE c.workspace_id = ? AND c.status = 'active' AND c.unsubscribed_at IS NULL AND c.id IN (" . placeholders($ids) . ')',
+        [$wsId, $aiCampaignId, $now, $now, $wsId, ...$ids]
+    )->rowCount();
+}
+
+/** Counts for the AI campaign pages. */
+function ai_campaign_stats(int $aiCampaignId): array
+{
+    $d = array_column(q_all('SELECT draft_status, COUNT(*) n FROM ai_campaign_contacts WHERE ai_campaign_id = ? GROUP BY draft_status', [$aiCampaignId]), 'n', 'draft_status');
+    $n = fn(string ...$keys) => array_sum(array_map(fn($k) => (int) ($d[$k] ?? 0), $keys));
+    $m = q_one(
+        'SELECT COUNT(sent_at) sent, COUNT(first_opened_at) opened, COUNT(first_clicked_at) clicked, COUNT(replied_at) replied,
+                SUM(status = \'bounced\') bounced
+         FROM email_messages WHERE ai_campaign_id = ? AND direction = \'outbound\'',
+        [$aiCampaignId]
+    );
+    return [
+        'contacts' => $n('pending', 'processing', 'ready', 'queued', 'failed', 'skipped'),
+        'waiting' => $n('pending', 'processing'),
+        'drafted' => $n('ready', 'queued'),
+        'failed' => $n('failed'),
+        'skipped' => $n('skipped'),
+        'queued' => (int) q_val("SELECT COUNT(*) FROM email_jobs WHERE ai_campaign_id = ? AND status IN ('pending','processing')", [$aiCampaignId]),
+        'sent' => (int) $m['sent'],
+        'opened' => (int) $m['opened'],
+        'clicked' => (int) $m['clicked'],
+        'replied' => (int) $m['replied'],
+        'bounced' => (int) $m['bounced'],
+        'cost' => (float) q_val('SELECT COALESCE(SUM(cost_usd), 0) FROM ai_campaign_contacts WHERE ai_campaign_id = ?', [$aiCampaignId]),
+    ];
+}
+
 /** Drafts stuck in "processing" (crashed or killed run) go back to pending. */
 function ai_release_stale_drafts(): int
 {

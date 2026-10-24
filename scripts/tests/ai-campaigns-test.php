@@ -135,5 +135,38 @@ t('tick runs end to end', function () {
     ok($s['drafted'] >= 1 && $s['queued'] >= 1, json_encode($s));
 });
 
+t('add by filter: idempotent, only active customers', function () {
+    $camp = fx_ai_campaign();
+    $a = fx_customer(['company' => 'Filterco One']);
+    fx_customer(['company' => 'Filterco Two', 'status' => 'unsubscribed', 'unsubscribed_at' => now()]);
+    $filters = ['company' => 'Filterco', 'status' => 'active'];
+    eq(ai_add_contacts_by_filter(fx_ws(), (int) $camp['id'], $filters), 1);
+    eq(ai_add_contacts_by_filter(fx_ws(), (int) $camp['id'], $filters), 0);
+    eq(q_col('SELECT customer_id FROM ai_campaign_contacts WHERE ai_campaign_id = ?', [$camp['id']]), [$a['id']]);
+    eq(q_val('SELECT draft_status FROM ai_campaign_contacts WHERE ai_campaign_id = ?', [$camp['id']]), 'pending');
+});
+t('add individuals skips other workspaces and suppressed', function () {
+    $camp = fx_ai_campaign();
+    $ok = fx_customer();
+    $bad = fx_customer(['status' => 'bounced']);
+    eq(ai_add_contacts(fx_ws(), (int) $camp['id'], [(int) $ok['id'], (int) $bad['id'], 999999999]), 1);
+});
+t('stats count drafts, sends and cost', function () {
+    $camp = fx_ai_campaign();
+    fx_ai_contact($camp, fx_customer(), ['draft_status' => 'failed']);
+    fx_ai_contact($camp, fx_customer(), ['draft_status' => 'queued', 'cost_usd' => 0.004]);
+    fx_ai_contact($camp, fx_customer(), ['draft_status' => 'pending', 'cost_usd' => 0.001]);
+    $m = fx_ai_message($camp, fx_customer(), q_one('SELECT * FROM mail_accounts WHERE name = ?', [FX_TAG]));
+    q('UPDATE email_messages SET sent_at = ?, first_opened_at = ? WHERE id = ?', [now(), now(), $m['id']]);
+    $s = ai_campaign_stats((int) $camp['id']);
+    eq($s['contacts'], 3);
+    eq($s['failed'], 1);
+    eq($s['waiting'], 1);
+    eq($s['drafted'], 1);
+    eq($s['sent'], 1);
+    eq($s['opened'], 1);
+    eq(round($s['cost'], 6), 0.005);
+});
+
 fx_cleanup();
 t_done();
