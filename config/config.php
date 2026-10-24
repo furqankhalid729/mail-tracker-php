@@ -82,6 +82,10 @@ define('ZOOM_API_BASE', rtrim((string) env('ZOOM_API_BASE', 'https://api.zoom.us
 define('APP_CURRENCY', strtoupper((string) env('APP_CURRENCY', 'PKR')));
 // Website inspector (inspector/): optional Google PageSpeed Insights key (works without one, but with a low shared quota)
 define('PAGESPEED_API_KEY', (string) env('PAGESPEED_API_KEY', ''));
+// AI Campaigns (ai-campaigns/): OpenRouter key and default model. OPENROUTER_API_BASE is overridable only for testing against a mock server
+define('OPENROUTER_API_KEY', (string) env('OPENROUTER_API_KEY', ''));
+define('OPENROUTER_DEFAULT_MODEL', (string) (env('OPENROUTER_DEFAULT_MODEL', '') ?: 'deepseek/deepseek-v4.1-flash'));
+define('OPENROUTER_API_BASE', rtrim((string) env('OPENROUTER_API_BASE', 'https://openrouter.ai/api/v1'), '/'));
 // Branding on inspector PDF reports. REPORT_BRAND_LOGO is a path under the app folder to a light/white logo (PNG/JPG).
 define('REPORT_BRAND_NAME', (string) env('REPORT_BRAND_NAME', APP_NAME));
 define('REPORT_BRAND_URL', (string) env('REPORT_BRAND_URL', ''));

@@ -30,6 +30,10 @@ const CRON_MAX_RUNTIME = 50;
 const QUEUE_BUILD_CHUNK = 500;
 // Bulk operations above this many customers are handed to cron (bulk_jobs) instead of the HTTP request
 const BULK_SYNC_LIMIT = 5000;
+// AI Campaigns: customers researched + drafted per cron run, tries per customer, and when a "processing" draft is abandoned
+const AI_DRAFT_BATCH = 3;
+const AI_DRAFT_MAX_ATTEMPTS = 3;
+const AI_DRAFT_LOCK_MINUTES = 10;
 
 const PER_PAGE_OPTIONS = [25, 50, 100];
 
