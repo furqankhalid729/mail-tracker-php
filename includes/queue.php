@@ -80,11 +80,23 @@ function campaign_unqueued_count(int $campaignId): int
 function enqueue_message(array $message, ?string $at = null): void
 {
     q(
-        "INSERT INTO email_jobs (workspace_id, email_message_id, campaign_id, status, scheduled_at, created_at) VALUES (?, ?, ?, 'pending', ?, ?)
+        "INSERT INTO email_jobs (workspace_id, email_message_id, campaign_id, ai_campaign_id, status, scheduled_at, created_at) VALUES (?, ?, ?, ?, 'pending', ?, ?)
          ON DUPLICATE KEY UPDATE status = 'pending', attempts = 0, scheduled_at = VALUES(scheduled_at), error_message = NULL, is_permanent_failure = 0, locked_at = NULL",
-        [$message['workspace_id'], $message['id'], $message['campaign_id'], $at ?? now(), now()]
+        [$message['workspace_id'], $message['id'], $message['campaign_id'], $message['ai_campaign_id'] ?? null, $at ?? now(), now()]
     );
     q("UPDATE email_messages SET status = 'queued', queued_at = ?, updated_at = ? WHERE id = ?", [now(), now(), $message['id']]);
+}
+
+/** Why a job must wait instead of sending now: its campaign or AI campaign is not active. Null = send. */
+function job_hold_reason(array $message): ?string
+{
+    if ($message['campaign_id'] && q_val('SELECT status FROM campaigns WHERE id = ?', [$message['campaign_id']]) !== 'active') {
+        return 'Campaign not active';
+    }
+    if (!empty($message['ai_campaign_id']) && q_val('SELECT status FROM ai_campaigns WHERE id = ?', [$message['ai_campaign_id']]) !== 'active') {
+        return 'AI campaign not active';
+    }
+    return null;
 }
 
 /** After limits are raised, jobs parked until tomorrow by a daily limit become due again. */
@@ -118,6 +130,7 @@ function claim_jobs(int $limit): array
         "UPDATE email_jobs SET status = 'processing', lock_token = ?, locked_at = ?, attempts = attempts + 1
          WHERE status = 'pending' AND scheduled_at <= ?
            AND (campaign_id IS NULL OR campaign_id IN (SELECT id FROM campaigns WHERE status = 'active'))
+           AND (ai_campaign_id IS NULL OR ai_campaign_id IN (SELECT id FROM ai_campaigns WHERE status = 'active'))
          ORDER BY scheduled_at, id
          LIMIT ?",
         [$token, now(), now(), $limit]
@@ -219,21 +232,18 @@ function process_email_queue(?int $limitOverride = null): array
 
         // Suppression: unsubscribed / bounced recipients never receive campaign mail
         $customer = $message['customer_id'] ? q_one('SELECT id, status, unsubscribed_at FROM customers WHERE id = ?', [$message['customer_id']]) : null;
-        if ($message['campaign_id'] && (!$customer || $customer['unsubscribed_at'] !== null || in_array($customer['status'], ['unsubscribed', 'bounced'], true))) {
+        if (($message['campaign_id'] || $message['ai_campaign_id']) && (!$customer || $customer['unsubscribed_at'] !== null || in_array($customer['status'], ['unsubscribed', 'bounced'], true))) {
             q("UPDATE email_messages SET status = 'cancelled', error_message = 'Recipient suppressed (unsubscribed or bounced)', updated_at = ? WHERE id = ?", [now(), $message['id']]);
             complete_job((int) $job['id'], 'cancelled', 'Recipient suppressed');
             $summary['skipped']++;
             continue;
         }
 
-        // Campaign must still be active at send time
-        if ($message['campaign_id']) {
-            $cstatus = q_val('SELECT status FROM campaigns WHERE id = ?', [$message['campaign_id']]);
-            if ($cstatus !== 'active') {
-                release_job((int) $job['id'], date('Y-m-d H:i:s', time() + 300), 'Campaign not active');
-                $summary['deferred']++;
-                continue;
-            }
+        // Campaign (or AI campaign) must still be active at send time
+        if ($hold = job_hold_reason($message)) {
+            release_job((int) $job['id'], date('Y-m-d H:i:s', time() + 300), $hold);
+            $summary['deferred']++;
+            continue;
         }
 
         // Daily limits: workspace and mail account
