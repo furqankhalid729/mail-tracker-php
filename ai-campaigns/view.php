@@ -141,7 +141,9 @@ require __DIR__ . '/../includes/header.php';
                             <button type="button" class="truncate text-left text-sm text-indigo-600 hover:underline" @click="open = !open"><?= e($r['subject'] ?: '(no subject)') ?></button>
                             <div x-show="open" x-cloak class="mt-2 space-y-2 rounded-lg bg-slate-50 p-3 text-xs">
                                 <div><b class="text-slate-600">Research</b><p class="mt-1 whitespace-pre-line text-slate-600"><?= e($r['research'] ?: '—') ?></p></div>
-                                <div><b class="text-slate-600">Email</b><div class="prose prose-sm mt-1 max-w-none rounded bg-white p-2"><?= sanitize_html($r['html_body']) ?></div></div>
+                                <div><b class="text-slate-600">Email</b><iframe sandbox="allow-same-origin allow-popups" class="mt-1 w-full rounded bg-white" style="min-height: 80px" title="Email preview"
+                                        srcdoc="<?= e('<base target="_blank"><style>body{font-family:Inter,Arial,sans-serif;font-size:13px;line-height:1.6;color:#1e293b;margin:8px;overflow-wrap:anywhere}a{color:#4f46e5}</style>' . $r['html_body']) ?>"
+                                        onload="this.style.height = (this.contentDocument.documentElement.scrollHeight + 4) + 'px'"></iframe></div>
                             </div>
                         <?php else: ?><span class="text-slate-400">—</span><?php endif; ?>
                     </td>

@@ -86,7 +86,9 @@ require __DIR__ . '/../includes/header.php';
     <div class="card lg:col-span-3">
         <div class="card-header"><div><div class="text-xs text-slate-500">Subject</div><h2 class="card-title"><?= e($result['subject']) ?></h2></div></div>
         <div class="card-body">
-            <div class="prose prose-sm max-w-none"><?= $result['html_body'] /* sanitised by ai_parse_reply() */ ?></div>
+            <iframe sandbox="allow-same-origin allow-popups" class="w-full" style="min-height: 120px" title="Email preview"
+                    srcdoc="<?= e('<base target="_blank"><style>body{font-family:Inter,Arial,sans-serif;font-size:14px;line-height:1.6;color:#1e293b;margin:0;overflow-wrap:anywhere}a{color:#4f46e5}</style>' . $result['html_body']) ?>"
+                    onload="this.style.height = (this.contentDocument.documentElement.scrollHeight + 4) + 'px'"></iframe>
             <details class="mt-4 text-sm"><summary class="cursor-pointer text-slate-500">Plain-text version</summary><pre class="mt-2 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-xs"><?= e($result['text_body']) ?></pre></details>
         </div>
     </div>
