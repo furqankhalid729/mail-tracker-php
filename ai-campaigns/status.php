@@ -17,11 +17,8 @@ switch ((string) input('action')) {
         flash('success', $n . ' failed customer' . ($n === 1 ? '' : 's') . ' will be retried' . ($campaign['status'] === 'active' || $campaign['status'] === 'completed' ? ' on the next cron run.' : ' when the campaign runs.'));
         break;
     case 'archive':
-        transaction(function () use ($cid) {
-            q("UPDATE email_jobs j JOIN email_messages m ON m.id = j.email_message_id SET j.status = 'cancelled', m.status = 'cancelled' WHERE j.ai_campaign_id = ? AND j.status = 'pending'", [$cid]);
-            q("UPDATE ai_campaigns SET status = 'archived', updated_at = ? WHERE id = ?", [now(), $cid]);
-        });
-        flash('success', 'AI campaign archived. Queued emails were cancelled.');
+        ai_archive_campaign($cid);
+        flash('success', 'AI campaign archived. Queued emails were cancelled and will be queued again if you unarchive and resume.');
         break;
     case 'unarchive':
         q("UPDATE ai_campaigns SET status = 'paused', updated_at = ? WHERE id = ? AND status = 'archived'", [now(), $cid]);

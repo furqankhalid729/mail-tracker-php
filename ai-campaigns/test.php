@@ -27,9 +27,11 @@ if (is_post()) {
     } elseif (trim((string) $customer['website']) === '' && trim((string) $customer['company']) === '') {
         $error = 'This customer has no website or company name, so there is nothing to research.';
     } else {
-        set_time_limit(180);
+        // Don't block the user's other tabs while OpenRouter works; keep under typical proxy timeouts
+        session_write_close();
+        set_time_limit(120);
         try {
-            $result = ai_draft_email($customer, ai_campaign_opts($campaign));
+            $result = ai_draft_email($customer, ai_campaign_opts($campaign) + ['timeout' => 90]);
         } catch (RuntimeException $e) { // OpenRouterException included
             $error = $e->getMessage();
         }

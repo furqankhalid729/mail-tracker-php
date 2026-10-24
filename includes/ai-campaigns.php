@@ -65,6 +65,27 @@ function ai_campaign_stats(int $aiCampaignId): array
     ];
 }
 
+/**
+ * Archive: cancel queued emails. Their contacts go back to "ready" (the draft is kept), so Unarchive + Resume
+ * re-queues them instead of silently never sending.
+ */
+function ai_archive_campaign(int $aiCampaignId): void
+{
+    transaction(function () use ($aiCampaignId) {
+        $cancelled = q_col("SELECT j.email_message_id FROM email_jobs j WHERE j.ai_campaign_id = ? AND j.status = 'pending'", [$aiCampaignId]);
+        if ($cancelled) {
+            $in = placeholders($cancelled);
+            q("UPDATE email_jobs SET status = 'cancelled' WHERE ai_campaign_id = ? AND email_message_id IN ($in)", [$aiCampaignId, ...$cancelled]);
+            q("UPDATE email_messages SET status = 'cancelled', updated_at = ? WHERE id IN ($in)", [now(), ...$cancelled]);
+            q(
+                "UPDATE ai_campaign_contacts SET draft_status = 'ready', email_message_id = NULL, updated_at = ? WHERE ai_campaign_id = ? AND email_message_id IN ($in)",
+                [now(), $aiCampaignId, ...$cancelled]
+            );
+        }
+        q("UPDATE ai_campaigns SET status = 'archived', updated_at = ? WHERE id = ?", [now(), $aiCampaignId]);
+    });
+}
+
 /** Drafts stuck in "processing" (crashed or killed run) go back to pending. */
 function ai_release_stale_drafts(): int
 {
@@ -120,6 +141,9 @@ function ai_process_draft(array $contact): string
 
     if (!$campaign || !$customer) {
         return $finish('skipped', ['error' => 'customer or campaign no longer exists']);
+    }
+    if ($customer['unsubscribed_at'] !== null || $customer['status'] !== 'active') {
+        return $finish('skipped', ['error' => 'customer unsubscribed, bounced or archived']);
     }
     if (trim((string) $customer['website']) === '' && trim((string) $customer['company']) === '') {
         return $finish('skipped', ['error' => 'no website or company']);

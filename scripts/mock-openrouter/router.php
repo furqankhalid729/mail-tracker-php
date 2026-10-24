@@ -2,7 +2,7 @@
 // Fake OpenRouter Chat Completions for LOCAL TESTING ONLY. Never deploy settings that point at it.
 // Run from the project root:  php -S 127.0.0.1:8098 scripts/mock-openrouter/router.php
 // .env: OPENROUTER_API_BASE=http://127.0.0.1:8098/api/v1   (OPENROUTER_API_KEY may stay empty)
-// The model name picks the behaviour: mock/fenced, mock/prose, mock/401, mock/402, mock/no-json-mode; anything else → valid JSON.
+// The model name picks the behaviour: mock/fenced, mock/prose, mock/401, mock/402, mock/no-json-mode, mock/slow (5 s); anything else → valid JSON.
 // The last request body is saved to scripts/mock-openrouter/last-request.json.
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $json = function ($data, $code = 200) { http_response_code($code); header('Content-Type: application/json'); echo json_encode($data); exit; };
@@ -15,6 +15,9 @@ $req = json_decode($raw, true) ?: [];
 $model = (string) ($req['model'] ?? '');
 $mode = str_starts_with($model, 'mock/') ? substr($model, 5) : 'ok';
 
+if ($mode === 'slow') {
+    sleep(5);
+}
 if ($mode === '401') {
     $json(['error' => ['code' => 401, 'message' => 'No auth credentials found']], 401);
 }
