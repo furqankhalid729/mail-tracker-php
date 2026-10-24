@@ -140,7 +140,29 @@ function user_agent(): string
  * Database helpers (always prepared statements)
  * ------------------------------------------------------------------------- */
 
+/**
+ * Shared hosts drop idle connections fast (wait_timeout), e.g. while PHP waits on a slow API call.
+ * Outside a transaction a lost connection is reopened and the statement retried once; inside one it is
+ * reset and rethrown, because the transaction's earlier statements are gone.
+ */
 function q(string $sql, array $params = []): PDOStatement
+{
+    try {
+        return q_execute($sql, $params);
+    } catch (PDOException $e) {
+        if (!in_array((int) ($e->errorInfo[1] ?? 0), [2006, 2013], true)) {
+            throw $e;
+        }
+        $inTransaction = db()->inTransaction();
+        db(true);
+        if ($inTransaction) {
+            throw $e;
+        }
+        return q_execute($sql, $params);
+    }
+}
+
+function q_execute(string $sql, array $params): PDOStatement
 {
     $stmt = db()->prepare($sql);
     if (!array_filter(array_keys($params), 'is_string')) {
@@ -220,7 +242,11 @@ function transaction(callable $fn): mixed
         $pdo->commit();
         return $result;
     } catch (Throwable $e) {
-        $pdo->rollBack();
+        try {
+            $pdo->rollBack();
+        } catch (PDOException) {
+            // Connection already lost: the server rolled the transaction back itself
+        }
         throw $e;
     }
 }
