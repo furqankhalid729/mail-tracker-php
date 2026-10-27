@@ -9,6 +9,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= e(asset('css/app.css')) ?>">
+    <script>
+        // Set the browser time zone before sign-in so the first app page needs no reload (see header.php).
+        try { document.cookie = 'tz=' + encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone) + '; path=/; max-age=31536000; samesite=lax'; } catch (e) {}
+    </script>
 </head>
 <body class="h-full">
 <div class="flex min-h-full">

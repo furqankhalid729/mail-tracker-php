@@ -339,13 +339,40 @@ function time_ago(?string $datetime): string
         $diff < 3600 => floor($diff / 60) . 'm ago',
         $diff < 86400 => floor($diff / 3600) . 'h ago',
         $diff < 604800 => floor($diff / 86400) . 'd ago',
-        default => date('M j, Y', strtotime($datetime)),
+        default => format_dt($datetime, 'M j, Y'),
     };
 }
 
+/** The viewer's browser time zone (the `tz` cookie set in the layout), or null to keep APP_TIMEZONE. */
+function viewer_timezone(): ?DateTimeZone
+{
+    static $tz = false;
+    if ($tz === false) {
+        $tz = null;
+        $name = (string) ($_COOKIE['tz'] ?? '');
+        if ($name !== '' && in_array($name, DateTimeZone::listIdentifiers(), true)) {
+            $tz = new DateTimeZone($name);
+        }
+    }
+    return $tz;
+}
+
+/** Stored timestamps are in APP_TIMEZONE; show them in the viewer's zone. Plain dates (Y-m-d) are not shifted. */
 function format_dt(?string $datetime, string $format = 'M j, Y g:i A'): string
 {
-    return $datetime ? date($format, strtotime($datetime)) : '—';
+    if (!$datetime) {
+        return '—';
+    }
+    try {
+        $dt = new DateTimeImmutable($datetime);
+    } catch (Exception) {
+        return '—';
+    }
+    $tz = viewer_timezone();
+    if ($tz && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $datetime)) {
+        $dt = $dt->setTimezone($tz);
+    }
+    return $dt->format($format);
 }
 
 function pct(int|float $part, int|float $whole, int $decimals = 1): string

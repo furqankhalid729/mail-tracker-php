@@ -110,13 +110,13 @@ $lastDay = null;
 <div class="card">
     <ul class="divide-y divide-slate-100">
         <?php foreach ($rows as $r):
-            $day = date('Y-m-d', strtotime($r['created_at']));
+            $day = format_dt($r['created_at'], 'Y-m-d');
             $meta = $r['metadata'] ? (json_decode($r['metadata'], true) ?: []) : [];
             if ($day !== $lastDay): $lastDay = $day; ?>
-                <li class="bg-slate-50/80 px-5 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500"><?= e($day === date('Y-m-d') ? 'Today' : ($day === date('Y-m-d', strtotime('-1 day')) ? 'Yesterday' : date('l, M j, Y', strtotime($day)))) ?></li>
+                <li class="bg-slate-50/80 px-5 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500"><?= e($day === format_dt(date('Y-m-d H:i:s'), 'Y-m-d') ? 'Today' : ($day === format_dt(date('Y-m-d H:i:s', strtotime('-1 day')), 'Y-m-d') ? 'Yesterday' : date('l, M j, Y', strtotime($day)))) ?></li>
             <?php endif; ?>
             <li class="flex items-start gap-3 px-5 py-3">
-                <span class="w-14 shrink-0 pt-1.5 text-xs tabular-nums text-slate-400"><?= e(date('H:i', strtotime($r['created_at']))) ?></span>
+                <span class="w-14 shrink-0 pt-1.5 text-xs tabular-nums text-slate-400"><?= e(format_dt($r['created_at'], 'H:i')) ?></span>
                 <?= event_icon($r['type']) ?>
                 <div class="min-w-0 flex-1 pt-1 text-sm">
                     <?php if ($r['customer_id']): ?><a class="font-medium text-slate-900 hover:text-indigo-600" href="<?= e(url('customers/view.php', ['id' => $r['customer_id']])) ?>"><?= e(customer_name($r)) ?></a><?php endif; ?>
