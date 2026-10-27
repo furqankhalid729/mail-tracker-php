@@ -46,6 +46,7 @@ A lightweight email CRM and campaign manager that runs on ordinary shared hostin
 9. **Cron.** hPanel → *Advanced → Cron Jobs* → *Custom*. Add the jobs below, replacing `USERNAME` and the path. **Settings → Cron & webhooks** inside the app shows the exact lines for your server.
    ```
    * * * * *     /usr/bin/php /home/USERNAME/public_html/cron/process-email-queue.php
+   * * * * *     /usr/bin/php /home/USERNAME/public_html/cron/process-ai-campaigns.php
    */5 * * * *   /usr/bin/php /home/USERNAME/public_html/cron/check-inbox.php
    */5 * * * *   /usr/bin/php /home/USERNAME/public_html/cron/process-webhooks.php
    */15 * * * *  /usr/bin/php /home/USERNAME/public_html/cron/retry-failed.php
@@ -70,7 +71,7 @@ A lightweight email CRM and campaign manager that runs on ordinary shared hostin
 - `ALLOW_REGISTRATION=false` once your team has accounts. Add teammates in *Settings → Members*.
 
 ### Upgrading an existing install
-Import the files in `migrations/` once each, in order (phpMyAdmin → *Import*): `001_roles_and_tasks.sql`, then `002_closers_and_zoom.sql`, then `003_call_leads.sql`, then `004_zoom_hangup.sql`, then `005_lead_follow_up_dates.sql`, then `006_call_recordings.sql`, then `007_employees.sql`, then `008_leave_requests.sql`, then `009_wiki.sql`, then `010_site_audits.sql`, then `011_lead_approvals.sql`, then `012_payroll_expenses.sql`. Each is safe to run again. Fresh installs get these from `database.sql`.
+Import the files in `migrations/` once each, in order (phpMyAdmin → *Import*): `001_roles_and_tasks.sql`, then `002_closers_and_zoom.sql`, then `003_call_leads.sql`, then `004_zoom_hangup.sql`, then `005_lead_follow_up_dates.sql`, then `006_call_recordings.sql`, then `007_employees.sql`, then `008_leave_requests.sql`, then `009_wiki.sql`, then `010_site_audits.sql`, then `011_lead_approvals.sql`, then `012_payroll_expenses.sql`, then `013_ai_campaigns.sql`. Each is safe to run again. Fresh installs get these from `database.sql`.
 
 ---
 
@@ -102,6 +103,22 @@ cron every minute → atomically claim ≤ N jobs → check: unsubscribed? bounc
 - **Retries.** After 5 min, then 30 min, then 2 h, up to *max attempts*. Permanent SMTP errors (5xx, unknown user) are never retried. `retry-failed.php` gives transient failures one more attempt after the account recovers, and releases jobs stuck in *processing* for more than 10 minutes.
 - **Limits.** Batch size per run, delay between emails, a workspace daily limit and a per-account daily limit. When a limit is reached, the backlog waits until tomorrow. Raising a limit releases it immediately.
 - **Large campaigns.** *Start* queues what fits in ~20 seconds, and cron queues the rest in chunks of 500. Bulk customer operations over 5,000 rows are also processed by cron.
+
+## AI Campaigns
+
+*Marketing → AI Campaigns* works like a campaign, but each email is written for its customer. You choose the customers and write a **research prompt**, a **subject** and an **email template**. For each customer, the model reads their website (OpenRouter `web_fetch`, free), optionally searches the web for competitors (`web_search`, about $0.001–0.005), and writes the whole email in your template's format. The email is then **sent automatically** through the normal queue, with the same daily limits, tracking, unsubscribe links and reply threading.
+
+```
+Start → ai_campaign_contacts (pending)
+cron/process-ai-campaigns.php every minute → research + write 3 customers → queue as email_messages/email_jobs
+cron/process-email-queue.php → sends them like any campaign mail
+```
+- **Setup.** In `.env`, set `OPENROUTER_API_KEY` (from openrouter.ai/keys). Optionally set `OPENROUTER_DEFAULT_MODEL` (default `deepseek/deepseek-v4.1-flash`; any OpenRouter model that supports tool calling). Then add the `process-ai-campaigns.php` cron line above.
+- **Try it first.** *Test on one customer* runs the research and writes the email right away, without saving or sending it, so you can tune the prompt and template before you start.
+- **Cost.** Roughly $0.01 or less per customer plus model tokens. The real cost of every customer is logged, and each campaign shows its total.
+- **Failures.** An unusable reply is retried up to 3 times, then marked *failed* (use *Retry failed*). A bad API key or exhausted credit (HTTP 401/402) **pauses the campaign** and shows the reason. Customers with neither a website nor a company name are *skipped*.
+- **Reusable.** `ai_draft_email($customer, $opts)` in `includes/ai-mail.php` is independent of the AI Campaigns pages.
+- **Local testing.** Run `php -S 127.0.0.1:8098 scripts/mock-openrouter/router.php` and `OPENROUTER_API_BASE=http://127.0.0.1:8098/api/v1` to use a fake OpenRouter. With the mock running, the tests are `php scripts/tests/<name>-test.php`.
 
 ## Tracking accuracy (shown in the UI as well)
 - **Sent ≠ delivered.** With SMTP, *sent* only means the server accepted the message. *Delivered* needs provider webhooks (SendGrid, Mailgun, Amazon SES or generic JSON at `/webhooks/email.php?provider=…`, authenticated with `WEBHOOK_SECRET`).
@@ -171,7 +188,7 @@ The PHP built-in server ignores `.htaccess`, so test the access rules on Apache.
 
 ## Project layout
 ```
-customers/ campaigns/ tasks/ calls/ leads/ inbox/ activity/ templates/ mail-accounts/ tags/ settings/   pages (+ _form/_save partials)
+customers/ campaigns/ ai-campaigns/ tasks/ calls/ leads/ inbox/ activity/ templates/ mail-accounts/ tags/ settings/   pages (+ _form/_save partials)
 api/            JSON endpoints (kanban, campaigns, customers, tags, activity, search)
 tracking/       open.php (pixel), click.php (signed redirect)
 unsubscribe/    public unsubscribe + one-click

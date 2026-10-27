@@ -60,13 +60,14 @@ function generate_message_id(string $fromEmail): string
     return random_token(12) . '.' . time() . '@' . preg_replace('/[^a-z0-9.-]/i', '', $domain);
 }
 
-function create_thread(int $wsId, int $customerId, ?int $campaignId, ?int $accountId, string $subject): int
+function create_thread(int $wsId, int $customerId, ?int $campaignId, ?int $accountId, string $subject, ?int $aiCampaignId = null): int
 {
     $now = now();
     return db_insert('email_threads', [
         'workspace_id' => $wsId,
         'customer_id' => $customerId,
         'campaign_id' => $campaignId,
+        'ai_campaign_id' => $aiCampaignId,
         'mail_account_id' => $accountId,
         'subject' => mb_substr($subject, 0, 255),
         'last_message_at' => $now,
@@ -77,7 +78,7 @@ function create_thread(int $wsId, int $customerId, ?int $campaignId, ?int $accou
 
 /**
  * Create an outbound message row. Does not send.
- * $o keys: workspace_id, customer (array), campaign_id, account (array), subject, html, text, cc, bcc,
+ * $o keys: workspace_id, customer (array), campaign_id, ai_campaign_id, account (array), subject, html, text, cc, bcc,
  *          user_id, thread_id, in_reply_to, references, status ('draft'|'queued'), message_id (existing draft id)
  */
 function save_outbound_message(array $o): int
@@ -92,6 +93,7 @@ function save_outbound_message(array $o): int
         'workspace_id' => $o['workspace_id'],
         'customer_id' => $customer['id'],
         'campaign_id' => $o['campaign_id'] ?? null,
+        'ai_campaign_id' => $o['ai_campaign_id'] ?? null,
         'thread_id' => $o['thread_id'] ?? null,
         'mail_account_id' => $account['id'] ?? null,
         'user_id' => $o['user_id'] ?? null,
@@ -118,6 +120,12 @@ function save_outbound_message(array $o): int
     $data['tracking_token'] = random_token(20);
     $data['created_at'] = $now;
     return db_insert('email_messages', $data);
+}
+
+/** Campaign and AI-campaign mail carries the unsubscribe footer/header; replies inside a conversation do not. */
+function is_bulk_mail(array $message): bool
+{
+    return (!empty($message['campaign_id']) || !empty($message['ai_campaign_id'])) && empty($message['in_reply_to']);
 }
 
 /** Ensure the customer is a contact of the campaign (idempotent via UNIQUE(campaign_id, customer_id)). */
@@ -244,8 +252,7 @@ function send_message(int $messageId, bool $keepAlive = false): array
         return ['ok' => false, 'error' => 'Sending account is disconnected', 'permanent' => false];
     }
     $workspace = q_one('SELECT * FROM workspaces WHERE id = ?', [$message['workspace_id']]);
-    // Campaign mail carries the unsubscribe footer/header; replies inside a conversation do not
-    $isCampaign = !empty($message['campaign_id']) && empty($message['in_reply_to']);
+    $isCampaign = is_bulk_mail($message);
 
     q("UPDATE email_messages SET status = 'sending', updated_at = ? WHERE id = ?", [now(), $messageId]);
 

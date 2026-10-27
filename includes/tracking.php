@@ -230,7 +230,7 @@ function unsubscribe_customer(array $customer, string $source, ?array $message =
         q(
             "UPDATE email_jobs j JOIN email_messages m ON m.id = j.email_message_id
              SET j.status = 'cancelled', j.error_message = 'Recipient unsubscribed', m.status = 'cancelled'
-             WHERE m.customer_id = ? AND m.campaign_id IS NOT NULL AND j.status = 'pending'",
+             WHERE m.customer_id = ? AND (m.campaign_id IS NOT NULL OR m.ai_campaign_id IS NOT NULL) AND j.status = 'pending'",
             [$customer['id']]
         );
     });

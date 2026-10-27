@@ -2,9 +2,13 @@
 declare(strict_types=1);
 
 /** Shared PDO connection. Session time zone follows APP_TIMEZONE so NOW()/CURDATE() match PHP. */
-function db(): PDO
+/** The shared connection. $fresh = true drops it, so the next call reconnects (see q()). */
+function db(bool $fresh = false): PDO
 {
     static $pdo = null;
+    if ($fresh) {
+        $pdo = null;
+    }
     if ($pdo instanceof PDO) {
         return $pdo;
     }

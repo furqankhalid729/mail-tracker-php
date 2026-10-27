@@ -21,6 +21,21 @@ $active_nav = $active_nav ?? '';
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= e(asset('css/app.css')) ?>">
     <?= $extra_head ?? '' ?>
+    <script>
+        // Times are rendered server-side in the browser's zone (see format_dt); reload once when it changes.
+        (function () {
+            try {
+                var tz = Intl.DateTimeFormat().resolvedOptions().timeZone, m = document.cookie.match(/(?:^|; )tz=([^;]*)/);
+                if (tz && (!m || decodeURIComponent(m[1]) !== tz)) {
+                    document.cookie = 'tz=' + encodeURIComponent(tz) + '; path=/; max-age=31536000; samesite=lax';
+                    if (document.cookie.indexOf('tz=') !== -1 && !sessionStorage.getItem('tz-reloaded')) {
+                        sessionStorage.setItem('tz-reloaded', '1');
+                        location.reload();
+                    }
+                }
+            } catch (e) {}
+        })();
+    </script>
     <script src="<?= e(asset('js/app.js')) ?>"></script>
     <script defer src="<?= e(asset('vendor/alpine.min.js')) ?>"></script>
 </head>

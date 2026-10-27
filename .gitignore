@@ -37,3 +37,4 @@ desktop.ini
 *.sql.gz
 *.bak
 /.phpunit.cache/
+scripts/mock-openrouter/last-request.json

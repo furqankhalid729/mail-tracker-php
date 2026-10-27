@@ -224,7 +224,7 @@ function process_inbound_email(array $account, array $parsed, ?string $providerI
 
     $threadId = $original['thread_id'];
     if (!$threadId) {
-        $threadId = create_thread($wsId, (int) $original['customer_id'], $original['campaign_id'] ? (int) $original['campaign_id'] : null, (int) $account['id'], (string) $original['subject']);
+        $threadId = create_thread($wsId, (int) $original['customer_id'], $original['campaign_id'] ? (int) $original['campaign_id'] : null, (int) $account['id'], (string) $original['subject'], $original['ai_campaign_id'] ? (int) $original['ai_campaign_id'] : null);
         q('UPDATE email_messages SET thread_id = ? WHERE id = ?', [$threadId, $original['id']]);
     }
 
@@ -233,6 +233,7 @@ function process_inbound_email(array $account, array $parsed, ?string $providerI
             'workspace_id' => $wsId,
             'customer_id' => $original['customer_id'],
             'campaign_id' => $original['campaign_id'],
+            'ai_campaign_id' => $original['ai_campaign_id'],
             'thread_id' => $threadId,
             'mail_account_id' => $account['id'],
             'direction' => 'inbound',

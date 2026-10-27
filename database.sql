@@ -189,6 +189,7 @@ CREATE TABLE IF NOT EXISTS email_threads (
     workspace_id INT UNSIGNED NOT NULL,
     customer_id INT UNSIGNED NOT NULL,
     campaign_id INT UNSIGNED NULL,
+    ai_campaign_id INT UNSIGNED NULL,
     mail_account_id INT UNSIGNED NULL,
     subject VARCHAR(255) NULL,
     provider_thread_id VARCHAR(190) NULL,
@@ -210,6 +211,8 @@ CREATE TABLE IF NOT EXISTS email_messages (
     workspace_id INT UNSIGNED NOT NULL,
     customer_id INT UNSIGNED NULL,
     campaign_id INT UNSIGNED NULL,
+    ai_campaign_id INT UNSIGNED NULL,
+    KEY idx_messages_ai_campaign (ai_campaign_id),
     thread_id INT UNSIGNED NULL,
     mail_account_id INT UNSIGNED NULL,
     user_id INT UNSIGNED NULL,
@@ -289,6 +292,8 @@ CREATE TABLE IF NOT EXISTS email_jobs (
     workspace_id INT UNSIGNED NOT NULL,
     email_message_id INT UNSIGNED NOT NULL,
     campaign_id INT UNSIGNED NULL,
+    ai_campaign_id INT UNSIGNED NULL,
+    KEY idx_jobs_ai_campaign (ai_campaign_id, status),
     status ENUM('pending','processing','completed','failed','cancelled') NOT NULL DEFAULT 'pending',
     attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
     lock_token CHAR(32) NULL,
@@ -918,3 +923,57 @@ CREATE TABLE IF NOT EXISTS expenses (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;
+
+-- AI Campaigns: per-customer research + AI-written emails (see ai-campaigns/)
+CREATE TABLE IF NOT EXISTS ai_campaigns (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    workspace_id INT UNSIGNED NOT NULL,
+    name VARCHAR(150) NOT NULL,
+    description TEXT NULL,
+    status ENUM('draft','active','paused','completed','archived') NOT NULL DEFAULT 'draft',
+    mail_account_id INT UNSIGNED NULL,
+    model VARCHAR(120) NOT NULL,
+    research_prompt TEXT NOT NULL,
+    subject VARCHAR(255) NOT NULL,
+    keep_subject TINYINT(1) NOT NULL DEFAULT 0,
+    email_template MEDIUMTEXT NOT NULL,
+    web_search TINYINT(1) NOT NULL DEFAULT 1,
+    last_error VARCHAR(500) NULL,
+    created_by INT UNSIGNED NULL,
+    started_at DATETIME NULL,
+    completed_at DATETIME NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    KEY idx_ai_campaigns_status (workspace_id, status),
+    CONSTRAINT fk_ai_campaigns_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
+    CONSTRAINT fk_ai_campaigns_account FOREIGN KEY (mail_account_id) REFERENCES mail_accounts(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- One row per customer in an AI campaign; also holds that customer's research + draft
+CREATE TABLE IF NOT EXISTS ai_campaign_contacts (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    workspace_id INT UNSIGNED NOT NULL,
+    ai_campaign_id INT UNSIGNED NOT NULL,
+    customer_id INT UNSIGNED NOT NULL,
+    draft_status ENUM('pending','processing','ready','queued','failed','skipped') NOT NULL DEFAULT 'pending',
+    attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    research TEXT NULL,
+    subject VARCHAR(255) NULL,
+    html_body MEDIUMTEXT NULL,
+    text_body MEDIUMTEXT NULL,
+    prompt_tokens INT UNSIGNED NULL,
+    completion_tokens INT UNSIGNED NULL,
+    web_requests SMALLINT UNSIGNED NULL,
+    cost_usd DECIMAL(10,6) NULL,
+    error VARCHAR(500) NULL,
+    email_message_id INT UNSIGNED NULL,
+    lock_token VARCHAR(32) NULL,
+    locked_at DATETIME NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    UNIQUE KEY uq_ai_cc (ai_campaign_id, customer_id),
+    KEY idx_ai_cc_status (ai_campaign_id, draft_status),
+    KEY idx_ai_cc_lock (lock_token),
+    CONSTRAINT fk_ai_cc_campaign FOREIGN KEY (ai_campaign_id) REFERENCES ai_campaigns(id) ON DELETE CASCADE,
+    CONSTRAINT fk_ai_cc_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

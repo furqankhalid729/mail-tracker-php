@@ -330,7 +330,7 @@ $disabled = $isAdmin ? '' : 'disabled';
                     <div class="rounded-lg bg-slate-50 p-3"><div class="text-xs text-slate-500">Last inbox check</div><div class="font-medium"><?= e($lastInboxCheck ? time_ago($lastInboxCheck) : 'never') ?></div></div>
                 </div>
                 <p>In hPanel → <b>Advanced → Cron Jobs</b>, add (use the PHP path your host shows, often <code>/usr/bin/php</code> or <code>/opt/alt/php82/usr/bin/php</code>):</p>
-                <pre class="overflow-x-auto rounded-lg bg-slate-900 p-4 text-xs leading-relaxed text-slate-100"><?php foreach ([['* * * * *', 'process-email-queue.php'], ['*/5 * * * *', 'check-inbox.php'], ['*/5 * * * *', 'process-webhooks.php'], ['*/15 * * * *', 'retry-failed.php'], ['*/15 * * * *', 'sync-zoom-calls.php'], ['30 3 * * *', 'cleanup.php']] as [$when, $f]) {
+                <pre class="overflow-x-auto rounded-lg bg-slate-900 p-4 text-xs leading-relaxed text-slate-100"><?php foreach ([['* * * * *', 'process-email-queue.php'], ['* * * * *', 'process-ai-campaigns.php'], ['*/5 * * * *', 'check-inbox.php'], ['*/5 * * * *', 'process-webhooks.php'], ['*/15 * * * *', 'retry-failed.php'], ['*/15 * * * *', 'sync-zoom-calls.php'], ['30 3 * * *', 'cleanup.php']] as [$when, $f]) {
                     echo e("$when $php " . APP_ROOT . "/cron/$f") . "\n";
                 } ?></pre>
                 <p class="font-medium">HTTP fallback (if CLI cron isn't available)</p>
