@@ -105,7 +105,7 @@ function payroll_unpaid_leave_days(?int $userId, string $from, string $to): floa
         return 0.0;
     }
     $days = 0.0;
-    foreach (q_all("SELECT start_date, end_date, half_day FROM leave_requests WHERE workspace_id = ? AND user_id = ? AND status = 'approved' AND leave_type = 'unpaid' AND start_date <= ? AND end_date >= ?", [ws_id(), $userId, $to, $from]) as $l) {
+    foreach (q_all("SELECT start_date, end_date, half_day FROM leave_requests WHERE workspace_id = ? AND user_id = ? AND status = 'approved' AND is_paid = 0 AND start_date <= ? AND end_date >= ?", [ws_id(), $userId, $to, $from]) as $l) {
         if ($l['half_day']) {
             $days += 0.5;
             continue;

@@ -71,7 +71,7 @@ A lightweight email CRM and campaign manager that runs on ordinary shared hostin
 - `ALLOW_REGISTRATION=false` once your team has accounts. Add teammates in *Settings → Members*.
 
 ### Upgrading an existing install
-Import the files in `migrations/` once each, in order (phpMyAdmin → *Import*): `001_roles_and_tasks.sql`, then `002_closers_and_zoom.sql`, then `003_call_leads.sql`, then `004_zoom_hangup.sql`, then `005_lead_follow_up_dates.sql`, then `006_call_recordings.sql`, then `007_employees.sql`, then `008_leave_requests.sql`, then `009_wiki.sql`, then `010_site_audits.sql`, then `011_lead_approvals.sql`, then `012_payroll_expenses.sql`, then `013_ai_campaigns.sql`. Each is safe to run again. Fresh installs get these from `database.sql`.
+Import the files in `migrations/` once each, in order (phpMyAdmin → *Import*): `001_roles_and_tasks.sql`, then `002_closers_and_zoom.sql`, then `003_call_leads.sql`, then `004_zoom_hangup.sql`, then `005_lead_follow_up_dates.sql`, then `006_call_recordings.sql`, then `007_employees.sql`, then `008_leave_requests.sql`, then `009_wiki.sql`, then `010_site_audits.sql`, then `011_lead_approvals.sql`, then `012_payroll_expenses.sql`, then `013_ai_campaigns.sql`, then `014_leave_paid.sql`. Each is safe to run again. Fresh installs get these from `database.sql`.
 
 ---
 

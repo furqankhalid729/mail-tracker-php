@@ -756,6 +756,7 @@ CREATE TABLE IF NOT EXISTS leave_requests (
     end_date DATE NOT NULL,
     half_day TINYINT(1) NOT NULL DEFAULT 0,
     days DECIMAL(5,1) NOT NULL DEFAULT 1.0,
+    is_paid TINYINT(1) NOT NULL DEFAULT 0,
     reason TEXT NULL,
     status ENUM('pending','approved','rejected','cancelled') NOT NULL DEFAULT 'pending',
     reviewed_by INT UNSIGNED NULL,
