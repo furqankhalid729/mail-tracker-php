@@ -15,6 +15,18 @@ function leave_status_badge(?string $status): string
     return '<span class="badge badge-' . $color . '">' . e(LEAVE_STATUSES[$status] ?? (string) $status) . '</span>';
 }
 
+/** Paid / Unpaid badge. Leave is unpaid unless a Super Admin marks it paid; unpaid approved leave is deducted on payroll. */
+function leave_pay_badge(array $leave): string
+{
+    return $leave['is_paid'] ? '<span class="badge badge-green">Paid</span>' : '<span class="badge badge-amber">Unpaid</span>';
+}
+
+/** Whether a Super Admin may mark this leave as paid (the Unpaid leave type always stays unpaid). */
+function leave_can_be_paid(array $leave): bool
+{
+    return $leave['leave_type'] !== 'unpaid';
+}
+
 /** Inclusive calendar days between two Y-m-d dates; 0.5 for a half day. */
 function leave_days(string $start, string $end, bool $halfDay): float
 {

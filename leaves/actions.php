@@ -3,7 +3,8 @@
  * Leave request actions (POST):
  *   action=request  any member asks for leave
  *   action=cancel   the requester withdraws a pending request
- *   action=approve / reject   Super Admin decides on a pending request, with an optional note
+ *   action=approve / reject   Super Admin decides on a pending request, with an optional note and paid / unpaid
+ *   action=set_pay  Super Admin marks an approved request paid or unpaid (unpaid by default)
  */
 require_once __DIR__ . '/../includes/init.php';
 require_auth();
@@ -86,6 +87,7 @@ if ($action === 'approve' || $action === 'reject') {
     $note = mb_substr(trim((string) input('review_note')), 0, 500);
     db_update('leave_requests', [
         'status' => $action === 'approve' ? 'approved' : 'rejected',
+        'is_paid' => $action === 'approve' && input('is_paid') && leave_can_be_paid($leave) ? 1 : 0,
         'reviewed_by' => $me,
         'reviewed_at' => now(),
         'review_note' => $note ?: null,
@@ -94,6 +96,23 @@ if ($action === 'approve' || $action === 'reject') {
     $who = (string) q_val('SELECT name FROM users WHERE id = ?', [$leave['user_id']]);
     flash('success', ($action === 'approve' ? 'Approved' : 'Rejected') . " {$who}’s leave (" . format_leave_range($leave['start_date'], $leave['end_date']) . ').');
     redirect_back('leaves/index.php?view=pending');
+}
+
+if ($action === 'set_pay') {
+    require_permission('leaves.approve');
+    $paid = (bool) input('is_paid');
+    if ($paid && !leave_can_be_paid($leave)) {
+        flash('error', 'Unpaid-type leave cannot be marked as paid. Change its type first.');
+        redirect_back('leaves/index.php?view=all');
+    }
+    if ($leave['status'] !== 'approved') {
+        flash('error', 'Only approved leave can be marked paid or unpaid. Choose it when approving.');
+        redirect_back('leaves/index.php?view=all');
+    }
+    db_update('leave_requests', ['is_paid' => $paid ? 1 : 0, 'updated_at' => now()], 'id = ? AND workspace_id = ?', [$leave['id'], $ws]);
+    $who = (string) q_val('SELECT name FROM users WHERE id = ?', [$leave['user_id']]);
+    flash('success', "Marked {$who}’s leave (" . format_leave_range($leave['start_date'], $leave['end_date']) . ') as ' . ($paid ? 'paid' : 'unpaid') . '.');
+    redirect_back('leaves/index.php?view=all');
 }
 
 abort(400, 'Unknown action.');

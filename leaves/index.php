@@ -72,7 +72,7 @@ $active_nav = 'leaves';
 require __DIR__ . '/../includes/header.php';
 
 /** One request row; $showUser for approver views, $actions = 'cancel' | 'review' | ''. */
-$renderLeave = function (array $l, bool $showUser, string $actions) use ($today) { ?>
+$renderLeave = function (array $l, bool $showUser, string $actions) use ($today, $canApprove) { ?>
     <li class="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-start" x-data="{ reviewing: false }">
         <?php if ($showUser): ?>
             <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold <?= e(avatar_color($l['user_name'])) ?>" title="<?= e($l['user_name']) ?>"><?= e(user_initials($l['user_name'])) ?></span>
@@ -84,6 +84,7 @@ $renderLeave = function (array $l, bool $showUser, string $actions) use ($today)
                 <span class="text-sm text-slate-500">· <?= e($l['half_day'] ? 'Half day' : format_leave_days($l['days'])) ?></span>
                 <span class="badge badge-slate"><?= e(LEAVE_TYPES[$l['leave_type']] ?? $l['leave_type']) ?></span>
                 <?= leave_status_badge($l['status']) ?>
+                <?php if ($l['status'] === 'approved' && leave_can_be_paid($l)): ?><?= leave_pay_badge($l) ?><?php endif; ?>
                 <?php if ($l['status'] === 'approved' && $l['start_date'] <= $today && $l['end_date'] >= $today): ?><span class="badge badge-violet">Off today</span><?php endif; ?>
             </div>
             <?php if ($l['reason']): ?><p class="mt-1 whitespace-pre-line text-sm text-slate-600"><?= e($l['reason']) ?></p><?php endif; ?>
@@ -98,6 +99,11 @@ $renderLeave = function (array $l, bool $showUser, string $actions) use ($today)
                 <form method="post" action="<?= e(url('leaves/actions.php')) ?>" x-show="reviewing" x-cloak class="mt-3 space-y-2">
                     <?= csrf_field() ?><input type="hidden" name="id" value="<?= (int) $l['id'] ?>">
                     <input class="input" name="review_note" maxlength="500" placeholder="Note for <?= e($l['user_name']) ?> (optional)">
+                    <?php if (leave_can_be_paid($l)): ?>
+                        <label class="flex items-center gap-2 text-sm text-slate-700">
+                            <input type="checkbox" name="is_paid" value="1" class="rounded border-slate-300 text-indigo-600"> Paid leave <span class="text-xs text-slate-400">(unpaid leave is deducted on payroll)</span>
+                        </label>
+                    <?php endif; ?>
                     <div class="flex gap-2">
                         <button name="action" value="approve" class="btn-primary"><?= icon('check', 'h-4 w-4') ?> Approve</button>
                         <button name="action" value="reject" class="btn-secondary text-red-600">Reject</button>
@@ -112,8 +118,13 @@ $renderLeave = function (array $l, bool $showUser, string $actions) use ($today)
                     <?= csrf_field() ?><input type="hidden" name="id" value="<?= (int) $l['id'] ?>">
                     <button name="action" value="approve" class="btn-primary !py-1.5"><?= icon('check', 'h-4 w-4') ?> Approve</button>
                 </form>
-                <button type="button" class="btn-secondary !py-1.5" @click="reviewing = true">Reject / add note</button>
+                <button type="button" class="btn-secondary !py-1.5" @click="reviewing = true" title="Approve as paid leave, reject, or add a note">Paid / reject / note</button>
             </div>
+        <?php elseif ($canApprove && $showUser && $l['status'] === 'approved' && leave_can_be_paid($l)): ?>
+            <form method="post" action="<?= e(url('leaves/actions.php')) ?>" class="shrink-0">
+                <?= csrf_field() ?><input type="hidden" name="action" value="set_pay"><input type="hidden" name="id" value="<?= (int) $l['id'] ?>"><input type="hidden" name="is_paid" value="<?= $l['is_paid'] ? 0 : 1 ?>">
+                <button class="btn-secondary !py-1.5 text-slate-600"><?= $l['is_paid'] ? 'Mark unpaid' : 'Mark paid' ?></button>
+            </form>
         <?php elseif ($actions === 'cancel' && $l['status'] === 'pending'): ?>
             <form method="post" action="<?= e(url('leaves/actions.php')) ?>" data-confirm="Cancel this leave request?" data-confirm-button="Cancel request" class="shrink-0">
                 <?= csrf_field() ?><input type="hidden" name="action" value="cancel"><input type="hidden" name="id" value="<?= (int) $l['id'] ?>">
