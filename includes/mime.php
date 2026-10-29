@@ -90,7 +90,7 @@ function mime_decode_body(string $body, ?string $encoding): string
 
 /**
  * Parse a full raw message. Returns:
- *   headers, subject, from_email, from_name, to, message_id, in_reply_to, references[], date,
+ *   headers, subject, from_email, from_name, to, to_all[], cc_all[], message_id, in_reply_to, references[], date,
  *   text, html, attachments[], is_bounce, bounce_message_ids[], bounce_status
  */
 function parse_raw_email(string $raw): array
@@ -112,6 +112,8 @@ function parse_raw_email(string $raw): array
     ];
     [$result['from_email'], $result['from_name']] = parse_address(mime_header($headers, 'from'));
     [$result['to']] = parse_address(mime_header($headers, 'to'));
+    $result['to_all'] = parse_address_list(implode(', ', $headers['to'] ?? []));
+    $result['cc_all'] = parse_address_list(implode(', ', $headers['cc'] ?? []));
 
     mime_walk_part($headers, $body, $result, 0);
 
@@ -215,6 +217,16 @@ function parse_address(?string $value): array
         return [strtolower($m[0]), ''];
     }
     return [null, ''];
+}
+
+/** Every address in a To/Cc style header, lowercased and de-duplicated. */
+function parse_address_list(?string $value): array
+{
+    $value = mime_decode_header($value);
+    if (!preg_match_all('/[A-Z0-9._%+\'-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i', $value, $m)) {
+        return [];
+    }
+    return array_values(array_unique(array_map('strtolower', $m[0])));
 }
 
 /** Strip quoted history from a reply so the inbox shows just the new text. */

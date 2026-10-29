@@ -14,3 +14,6 @@ define('SYSTEM_FROM_NAME', (string) env('SYSTEM_FROM_NAME', APP_NAME));
 // Timeouts (seconds) used when talking to SMTP/IMAP servers from cron
 const SMTP_TIMEOUT = 20;
 const IMAP_TIMEOUT = 20;
+
+// Sent-folder names tried (case-insensitive) when the IMAP server doesn't flag one as \Sent
+const IMAP_SENT_FOLDER_NAMES = ['Sent', 'Sent Items', 'Sent Messages', 'Sent Mail', 'INBOX.Sent', 'INBOX/Sent', 'INBOX.Sent Items', 'INBOX.Sent Messages', '[Gmail]/Sent Mail'];

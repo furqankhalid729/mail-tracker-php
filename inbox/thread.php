@@ -58,7 +58,9 @@ require __DIR__ . '/../includes/header.php';
                             </div>
                             <div class="truncate text-xs text-slate-500"><?= e($m['from_email']) ?> → <?= e($m['to_email']) ?><?= $m['cc'] ? ' · cc ' . e($m['cc']) : '' ?></div>
                         </div>
-                        <?php if ($mine): ?>
+                        <?php if ($mine && $m['is_external']): ?>
+                            <span class="badge badge-amber tooltip shrink-0 normal-case" data-tip="Sent from another mail client; picked up from the Sent folder (no open/click tracking)">Outside CRM</span>
+                        <?php elseif ($mine): ?>
                             <div class="flex shrink-0 items-center gap-1.5">
                                 <?= status_badge($m['status']) ?>
                                 <?php if ($m['open_count']): ?><span class="badge badge-violet tooltip" data-tip="Approximate">👁 <?= (int) $m['open_count'] ?></span><?php endif; ?>

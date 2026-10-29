@@ -184,6 +184,7 @@ $actionUrl = url('customers/actions.php');
                                     <span class="truncate text-sm font-medium text-slate-900"><?= e($m['subject'] ?: '(no subject)') ?></span>
                                 <?php endif; ?>
                                 <?= status_badge($m['status']) ?>
+                                <?php if ($m['is_external']): ?><span class="badge badge-amber normal-case">Outside CRM</span><?php endif; ?>
                                 <?php if ($m['att']): ?><span class="text-slate-400"><?= icon('paperclip', 'h-3.5 w-3.5') ?></span><?php endif; ?>
                             </div>
                             <p class="mt-0.5 line-clamp-1 text-xs text-slate-500"><?= e(mb_strimwidth((string) $m['text_body'], 0, 160, '…')) ?></p>

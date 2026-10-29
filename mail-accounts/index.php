@@ -7,7 +7,7 @@ $ws = ws_id();
 $accounts = q_all(
     "SELECT a.id, a.name, a.provider, a.email, a.from_name, a.smtp_host, a.smtp_port, a.imap_host, a.daily_limit, a.status, a.last_error,
             a.inbox_checked_at, a.created_at,
-            (SELECT COUNT(*) FROM email_messages m WHERE m.mail_account_id = a.id AND m.direction = 'outbound' AND m.sent_at >= ?) sent_today
+            (SELECT COUNT(*) FROM email_messages m WHERE m.mail_account_id = a.id AND m.direction = 'outbound' AND m.is_external = 0 AND m.sent_at >= ?) sent_today
      FROM mail_accounts a WHERE a.workspace_id = ? ORDER BY a.created_at",
     [date('Y-m-d 00:00:00'), $ws]
 );
