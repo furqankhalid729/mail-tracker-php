@@ -157,12 +157,12 @@ function release_job(int $jobId, string $at, ?string $reason = null): void
 
 function sent_today_for_account(int $accountId): int
 {
-    return (int) q_val("SELECT COUNT(*) FROM email_messages WHERE mail_account_id = ? AND direction = 'outbound' AND sent_at >= ?", [$accountId, date('Y-m-d 00:00:00')]);
+    return (int) q_val("SELECT COUNT(*) FROM email_messages WHERE mail_account_id = ? AND direction = 'outbound' AND is_external = 0 AND sent_at >= ?", [$accountId, date('Y-m-d 00:00:00')]);
 }
 
 function sent_today_for_workspace(int $wsId): int
 {
-    return (int) q_val("SELECT COUNT(*) FROM email_messages WHERE workspace_id = ? AND direction = 'outbound' AND sent_at >= ?", [$wsId, date('Y-m-d 00:00:00')]);
+    return (int) q_val("SELECT COUNT(*) FROM email_messages WHERE workspace_id = ? AND direction = 'outbound' AND is_external = 0 AND sent_at >= ?", [$wsId, date('Y-m-d 00:00:00')]);
 }
 
 /**
