@@ -3,6 +3,18 @@
 require __DIR__ . '/_assert.php';
 require __DIR__ . '/_fixtures.php';
 
+/** Conversations held by address only (no customer) aren't covered by fx_cleanup() */
+function cleanup_contact_threads(): void
+{
+    $ids = q_col("SELECT id FROM email_threads WHERE customer_id IS NULL AND contact_email LIKE '%@nowhere.test'");
+    if ($ids) {
+        q('DELETE FROM email_events WHERE email_message_id IN (SELECT id FROM email_messages WHERE thread_id IN (' . placeholders($ids) . '))', $ids);
+        q('DELETE FROM email_messages WHERE thread_id IN (' . placeholders($ids) . ')', $ids);
+        q('DELETE FROM email_threads WHERE id IN (' . placeholders($ids) . ')', $ids);
+    }
+}
+
+cleanup_contact_threads();
 fx_cleanup();
 $account = fx_account();
 
@@ -68,8 +80,37 @@ t('reply from another client joins the thread and marks it read', function () us
     eq((int) q_val('SELECT is_unread FROM email_threads WHERE id = ?', [$tid]), 0);
     eq((int) q_val('SELECT is_read FROM email_messages WHERE id = ?', [$inId]), 1);
 });
-t('mail to someone who is not a customer is not imported', function () use ($account) {
-    eq(process_sent_email($account, parse_raw_email(raw_mail($account['email'], 'stranger-' . random_token(4) . '@nowhere.test', 'Lunch?', 'lunch-' . random_token(6) . '@x.test', 'hi'))), 'skipped');
+t('mail to someone who is not a customer gets a conversation held by their address', function () use ($account) {
+    $to = 'stranger-' . random_token(4) . '@nowhere.test';
+    $msgId = 'lunch-' . random_token(6) . '@x.test';
+    eq(process_sent_email($account, parse_raw_email(raw_mail($account['email'], $to, 'Lunch?', $msgId, 'hi'))), 'imported');
+    $m = q_one('SELECT * FROM email_messages WHERE message_id = ?', [$msgId]);
+    eq($m['customer_id'], null);
+    $t = q_one('SELECT * FROM email_threads WHERE id = ?', [$m['thread_id']]);
+    eq([$t['customer_id'], $t['contact_email']], [null, $to]);
+    // A follow-up with the same subject continues that conversation
+    process_sent_email($account, parse_raw_email(raw_mail($account['email'], $to, 'Re: Lunch?', 'lunch2-' . random_token(6) . '@x.test', 'still on?')));
+    eq((int) q_val('SELECT COUNT(*) FROM email_messages WHERE thread_id = ?', [$t['id']]), 2);
+});
+t('their reply lands in that conversation, and adding them as a customer moves it to the customer', function () use ($account) {
+    $to = 'later-' . random_token(4) . '@nowhere.test';
+    $msgId = 'intro-' . random_token(6) . '@x.test';
+    process_sent_email($account, parse_raw_email(raw_mail($account['email'], $to, 'Intro', $msgId, 'hello')));
+    $tid = (int) q_val('SELECT thread_id FROM email_messages WHERE message_id = ?', [$msgId]);
+    $reply = "From: Later <$to>
+To: {$account['email']}
+Subject: Re: Intro
+Message-ID: <r-$msgId>
+In-Reply-To: <$msgId>
+
+Thanks!";
+    eq(process_inbound_email($account, parse_raw_email($reply)), 'reply');
+    eq((int) q_val('SELECT thread_id FROM email_messages WHERE message_id = ?', ['r-' . $msgId]), $tid);
+    eq((int) q_val('SELECT is_unread FROM email_threads WHERE id = ?', [$tid]), 1);
+    $c = fx_customer(['email' => $to]);
+    ok(link_contact_threads(fx_ws(), $to) >= 1, 'nothing linked');
+    eq((int) q_val('SELECT customer_id FROM email_threads WHERE id = ?', [$tid]), (int) $c['id']);
+    eq((int) q_val('SELECT COUNT(*) FROM email_messages WHERE thread_id = ? AND customer_id = ?', [$tid, $c['id']]), 2);
 });
 t('imported mail does not count toward daily send limits', function () use ($account) {
     $before = sent_today_for_account((int) $account['id']);
@@ -100,7 +141,7 @@ t('end to end: check_imap_account finds the Sent folder (literal name) and impor
         $acc = q_one('SELECT * FROM mail_accounts WHERE id = ?', [$account['id']]);
         $stats = check_imap_account($acc);
         ok(!isset($stats['sent_error']), $stats['sent_error'] ?? '');
-        eq([$stats['sent_fetched'], $stats['imported'], $stats['skipped']], [2, 1, 1]);
+        eq([$stats['sent_fetched'], $stats['imported'], $stats['skipped']], [2, 2, 0]);
         $acc = q_one('SELECT * FROM mail_accounts WHERE id = ?', [$account['id']]);
         eq($acc['imap_sent_folder'], 'Sent Items');
         eq((int) $acc['imap_sent_last_uid'], 2);
@@ -116,5 +157,6 @@ t('end to end: check_imap_account finds the Sent folder (literal name) and impor
     }
 });
 
+cleanup_contact_threads();
 fx_cleanup();
 t_done();

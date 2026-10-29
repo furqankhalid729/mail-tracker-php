@@ -9,7 +9,8 @@ if (is_post()) {
     require __DIR__ . '/_save.php';
 }
 
-$customer = [];
+// "Add as customer" from an inbox conversation pre-fills the address
+$customer = is_valid_email((string) input('email')) ? ['email' => strtolower((string) input('email'))] : [];
 $customerTags = [];
 $allTags = workspace_tags($ws);
 $errors = get_errors();

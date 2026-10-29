@@ -60,12 +60,14 @@ function generate_message_id(string $fromEmail): string
     return random_token(12) . '.' . time() . '@' . preg_replace('/[^a-z0-9.-]/i', '', $domain);
 }
 
-function create_thread(int $wsId, int $customerId, ?int $campaignId, ?int $accountId, string $subject, ?int $aiCampaignId = null): int
+/** $customerId is null for a conversation with someone who isn't a customer yet; $contactEmail is then their address. */
+function create_thread(int $wsId, ?int $customerId, ?int $campaignId, ?int $accountId, string $subject, ?int $aiCampaignId = null, ?string $contactEmail = null): int
 {
     $now = now();
     return db_insert('email_threads', [
         'workspace_id' => $wsId,
         'customer_id' => $customerId,
+        'contact_email' => $contactEmail !== null ? mb_substr(strtolower($contactEmail), 0, 190) : null,
         'campaign_id' => $campaignId,
         'ai_campaign_id' => $aiCampaignId,
         'mail_account_id' => $accountId,
@@ -74,6 +76,35 @@ function create_thread(int $wsId, int $customerId, ?int $campaignId, ?int $accou
         'created_at' => $now,
         'updated_at' => $now,
     ]);
+}
+
+/**
+ * Attach conversations held by address only (contact_email, no customer) to the customer with that address.
+ * Runs from check-inbox for every workspace, and right away when a customer is created by hand.
+ */
+function link_contact_threads(?int $wsId = null, ?string $email = null): int
+{
+    $where = 't.customer_id IS NULL AND t.contact_email IS NOT NULL';
+    $params = [];
+    if ($wsId !== null) {
+        $where .= ' AND t.workspace_id = ?';
+        $params[] = $wsId;
+    }
+    if ($email !== null) {
+        $where .= ' AND t.contact_email = ?';
+        $params[] = strtolower($email);
+    }
+    $threads = q_all(
+        "SELECT t.id, c.id customer_id FROM email_threads t JOIN customers c ON c.workspace_id = t.workspace_id AND c.email = t.contact_email
+         WHERE $where LIMIT 500",
+        $params
+    );
+    foreach ($threads as $t) {
+        q('UPDATE email_threads SET customer_id = ? WHERE id = ? AND customer_id IS NULL', [$t['customer_id'], $t['id']]);
+        q('UPDATE email_messages SET customer_id = ? WHERE thread_id = ? AND customer_id IS NULL', [$t['customer_id'], $t['id']]);
+        q('UPDATE email_events ev JOIN email_messages m ON m.id = ev.email_message_id SET ev.customer_id = ? WHERE m.thread_id = ? AND ev.customer_id IS NULL', [$t['customer_id'], $t['id']]);
+    }
+    return count($threads);
 }
 
 /**

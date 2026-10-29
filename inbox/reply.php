@@ -6,7 +6,10 @@ require_post();
 $ws = ws_id();
 $thread = find_or_404('email_threads', input_int('thread_id'));
 $back = url('inbox/thread.php', ['id' => $thread['id']]);
-$customer = q_one('SELECT * FROM customers WHERE id = ? AND workspace_id = ?', [$thread['customer_id'], $ws]);
+// Conversations with non-customers have no customer row, only contact_email; a stub keeps placeholders and the message row working
+$customer = $thread['customer_id']
+    ? q_one('SELECT * FROM customers WHERE id = ? AND workspace_id = ?', [$thread['customer_id'], $ws])
+    : ($thread['contact_email'] ? ['id' => null, 'email' => $thread['contact_email']] : null);
 $account = q_one("SELECT * FROM mail_accounts WHERE id = ? AND workspace_id = ? AND status <> 'disconnected'", [input_int('mail_account_id'), $ws]);
 $mode = input('mode') === 'forward' ? 'forward' : 'reply';
 $body = trim((string) input('body'));

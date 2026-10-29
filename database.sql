@@ -191,7 +191,8 @@ CREATE TABLE IF NOT EXISTS campaign_contacts (
 CREATE TABLE IF NOT EXISTS email_threads (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     workspace_id INT UNSIGNED NOT NULL,
-    customer_id INT UNSIGNED NOT NULL,
+    customer_id INT UNSIGNED NULL,
+    contact_email VARCHAR(190) NULL,
     campaign_id INT UNSIGNED NULL,
     ai_campaign_id INT UNSIGNED NULL,
     mail_account_id INT UNSIGNED NULL,
@@ -205,6 +206,7 @@ CREATE TABLE IF NOT EXISTS email_threads (
     KEY idx_threads_customer (customer_id, last_message_at),
     KEY idx_threads_ws (workspace_id, last_message_at),
     KEY idx_threads_provider (provider_thread_id),
+    KEY idx_threads_contact (workspace_id, contact_email),
     CONSTRAINT fk_threads_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
     CONSTRAINT fk_threads_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
     CONSTRAINT fk_threads_campaign FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE SET NULL

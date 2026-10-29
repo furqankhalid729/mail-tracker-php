@@ -4,8 +4,9 @@ require_auth();
 $ws = ws_id();
 $thread = find_or_404('email_threads', input_int('id'));
 $tid = (int) $thread['id'];
-$customer = q_one('SELECT * FROM customers WHERE id = ? AND workspace_id = ?', [$thread['customer_id'], $ws]);
-if (!$customer) {
+// No customer_id: a conversation with someone who isn't a customer yet, known only by contact_email
+$customer = $thread['customer_id'] ? q_one('SELECT * FROM customers WHERE id = ? AND workspace_id = ?', [$thread['customer_id'], $ws]) : null;
+if ($thread['customer_id'] && !$customer) {
     abort(404, 'Customer not found.');
 }
 
@@ -28,11 +29,12 @@ if ($thread['is_unread']) {
 
 $accounts = q_all("SELECT id, name, email FROM mail_accounts WHERE workspace_id = ? AND status <> 'disconnected' ORDER BY name", [$ws]);
 $defaultAccount = (int) ($thread['mail_account_id'] ?? 0);
-$membership = $thread['campaign_id'] ? q_one('SELECT cc.*, cp.name FROM campaign_contacts cc JOIN campaigns cp ON cp.id = cc.campaign_id WHERE cc.campaign_id = ? AND cc.customer_id = ?', [$thread['campaign_id'], $customer['id']]) : null;
+$membership = $customer && $thread['campaign_id'] ? q_one('SELECT cc.*, cp.name FROM campaign_contacts cc JOIN campaigns cp ON cp.id = cc.campaign_id WHERE cc.campaign_id = ? AND cc.customer_id = ?', [$thread['campaign_id'], $customer['id']]) : null;
 $campaigns = q_all("SELECT id, name FROM campaigns WHERE workspace_id = ? AND status <> 'archived' ORDER BY created_at DESC", [$ws]);
-$notes = q_all('SELECT n.*, u.name author FROM notes n LEFT JOIN users u ON u.id = n.user_id WHERE n.customer_id = ? ORDER BY n.created_at DESC LIMIT 5', [$customer['id']]);
-$tags = tags_for_customers([(int) $customer['id']])[$customer['id']] ?? [];
-$name = customer_name($customer);
+$notes = $customer ? q_all('SELECT n.*, u.name author FROM notes n LEFT JOIN users u ON u.id = n.user_id WHERE n.customer_id = ? ORDER BY n.created_at DESC LIMIT 5', [$customer['id']]) : [];
+$tags = $customer ? tags_for_customers([(int) $customer['id']])[$customer['id']] ?? [] : [];
+$peerEmail = (string) ($customer['email'] ?? $thread['contact_email'] ?? '');
+$name = $customer ? customer_name($customer) : ($peerEmail ?: 'Unknown recipient');
 $returnTo = 'inbox/thread.php?id=' . $tid;
 
 $page_title = $thread['subject'] ?: 'Conversation';
@@ -50,7 +52,7 @@ require __DIR__ . '/../includes/header.php';
                 $html = (string) $m['html_body']; ?>
                 <div class="card overflow-hidden <?= $mine ? '' : 'ring-1 ring-emerald-200' ?>">
                     <div class="flex items-start gap-3 border-b border-slate-100 px-5 py-3">
-                        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold <?= $mine ? 'bg-indigo-600 text-white' : avatar_color($customer['email']) ?>"><?= e(initials($mine ? ($m['from_name'] ?: $m['user_name'] ?: $m['from_email']) : $name)) ?></span>
+                        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold <?= $mine ? 'bg-indigo-600 text-white' : avatar_color($peerEmail) ?>"><?= e(initials($mine ? ($m['from_name'] ?: $m['user_name'] ?: $m['from_email']) : $name)) ?></span>
                         <div class="min-w-0 flex-1 text-sm">
                             <div class="flex flex-wrap items-baseline justify-between gap-x-3">
                                 <span class="font-semibold text-slate-900"><?= $mine ? 'You' . ($m['user_name'] ? ' (' . e($m['user_name']) . ')' : '') : e($m['from_name'] ?: $name) ?></span>
@@ -103,7 +105,7 @@ require __DIR__ . '/../includes/header.php';
                             <?php foreach ($accounts as $a): ?><option value="<?= (int) $a['id'] ?>" <?= (int) $a['id'] === $defaultAccount ? 'selected' : '' ?>><?= e($a['email']) ?></option><?php endforeach; ?>
                         </select>
                     </div>
-                    <div x-show="mode === 'reply'"><label class="label">To</label><input class="input bg-slate-50" value="<?= e($customer['email']) ?>" disabled></div>
+                    <div x-show="mode === 'reply'"><label class="label">To</label><input class="input bg-slate-50" value="<?= e($peerEmail) ?>" disabled></div>
                     <div x-show="mode === 'forward'" x-cloak><label class="label">Forward to</label><input class="input" type="email" name="forward_to" placeholder="colleague@company.com" :required="mode === 'forward'"></div>
                 </div>
                 <div><label class="label">Cc <span class="font-normal text-slate-400">(optional)</span></label><input class="input" name="cc" placeholder="name@example.com"></div>
@@ -119,6 +121,21 @@ require __DIR__ . '/../includes/header.php';
 
     <!-- Sidebar -->
     <div class="space-y-4">
+        <?php if (!$customer): ?>
+        <div class="card p-5">
+            <div class="flex items-center gap-3">
+                <span class="flex h-11 w-11 items-center justify-center rounded-full text-sm font-semibold <?= avatar_color($peerEmail) ?>"><?= e(initials($name)) ?></span>
+                <div class="min-w-0">
+                    <div class="truncate font-semibold text-slate-900"><?= e($name) ?></div>
+                    <div class="text-xs text-slate-500">Not a customer</div>
+                </div>
+            </div>
+            <?php if ($peerEmail !== ''): ?>
+                <a href="<?= e(url('customers/create.php', ['email' => $peerEmail])) ?>" class="btn-primary mt-4 w-full justify-center"><?= icon('plus', 'h-4 w-4') ?> Add as customer</a>
+                <p class="mt-2 text-xs text-slate-500">This conversation, and any others with <?= e($peerEmail) ?>, move to the new customer. CRM stage, campaigns and notes then become available.</p>
+            <?php endif; ?>
+        </div>
+        <?php else: ?>
         <div class="card p-5">
             <div class="flex items-center gap-3">
                 <span class="flex h-11 w-11 items-center justify-center rounded-full text-sm font-semibold <?= avatar_color($customer['email']) ?>"><?= e(initials($name)) ?></span>
@@ -166,6 +183,7 @@ require __DIR__ . '/../includes/header.php';
                 </div>
             <?php endforeach; ?>
         </div>
+        <?php endif; ?>
     </div>
 </div>
 <?php require __DIR__ . '/../includes/footer.php';

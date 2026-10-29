@@ -18,8 +18,8 @@ if (input_int('campaign_id')) {
 }
 if ($q !== '') {
     $like = '%' . $q . '%';
-    $where[] = '(t.subject LIKE ? OR c.email LIKE ? OR c.full_name LIKE ? OR c.company LIKE ?)';
-    array_push($params, $like, $like, $like, $like);
+    $where[] = '(t.subject LIKE ? OR c.email LIKE ? OR c.full_name LIKE ? OR c.company LIKE ? OR t.contact_email LIKE ?)';
+    array_push($params, $like, $like, $like, $like, $like);
 }
 $whereSql = implode(' AND ', $where);
 
@@ -49,14 +49,15 @@ if ($view === 'sent') {
         [...$sp, $p['per_page'], $p['offset']]
     );
 } else {
-    $total = (int) q_val("SELECT COUNT(*) FROM email_threads t JOIN customers c ON c.id = t.customer_id WHERE $whereSql", $params);
+    // LEFT JOIN: conversations with non-customers have only contact_email
+    $total = (int) q_val("SELECT COUNT(*) FROM email_threads t LEFT JOIN customers c ON c.id = t.customer_id WHERE $whereSql", $params);
     $p = paginate($total, per_page(25));
     $threads = q_all(
-        "SELECT t.*, c.first_name, c.last_name, c.full_name, c.email, c.company, cp.name campaign_name,
+        "SELECT t.*, c.first_name, c.last_name, c.full_name, COALESCE(c.email, t.contact_email) email, c.company, cp.name campaign_name,
             (SELECT COUNT(*) FROM email_messages m WHERE m.thread_id = t.id AND m.status <> 'cancelled') message_count,
             (SELECT m.text_body FROM email_messages m WHERE m.thread_id = t.id AND (m.sent_at IS NOT NULL OR m.direction = 'inbound') ORDER BY m.id DESC LIMIT 1) last_text,
             (SELECT m.direction FROM email_messages m WHERE m.thread_id = t.id AND (m.sent_at IS NOT NULL OR m.direction = 'inbound') ORDER BY m.id DESC LIMIT 1) last_direction
-         FROM email_threads t JOIN customers c ON c.id = t.customer_id LEFT JOIN campaigns cp ON cp.id = t.campaign_id
+         FROM email_threads t LEFT JOIN customers c ON c.id = t.customer_id LEFT JOIN campaigns cp ON cp.id = t.campaign_id
          WHERE $whereSql ORDER BY t.last_message_at DESC LIMIT ? OFFSET ?",
         [...$params, $p['per_page'], $p['offset']]
     );
@@ -89,7 +90,7 @@ require __DIR__ . '/../includes/header.php';
         <?php foreach ($threads as $t): $name = customer_name($t); ?>
             <li>
                 <a href="<?= e(url('inbox/thread.php', ['id' => $t['id']])) ?>" class="flex items-start gap-3 px-4 py-3.5 hover:bg-slate-50 <?= $t['is_unread'] ? 'bg-indigo-50/40' : '' ?>">
-                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold <?= avatar_color($t['email']) ?>"><?= e(initials($name)) ?></span>
+                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold <?= avatar_color((string) $t['email']) ?>"><?= e(initials($name)) ?></span>
                     <div class="min-w-0 flex-1">
                         <div class="flex items-baseline justify-between gap-3">
                             <span class="truncate text-sm <?= $t['is_unread'] ? 'font-semibold text-slate-900' : 'font-medium text-slate-800' ?>"><?= e($name) ?><?php if ($t['company']): ?> <span class="font-normal text-slate-400">· <?= e($t['company']) ?></span><?php endif; ?></span>
@@ -103,6 +104,7 @@ require __DIR__ . '/../includes/header.php';
                     </div>
                     <div class="hidden shrink-0 flex-col items-end gap-1 sm:flex">
                         <?php if ($t['is_unread']): ?><span class="h-2 w-2 rounded-full bg-indigo-600"></span><?php endif; ?>
+                        <?php if (!$t['customer_id']): ?><span class="badge badge-slate normal-case">Not a customer</span><?php endif; ?>
                         <?php if ($t['campaign_name']): ?><span class="badge badge-slate max-w-[10rem] truncate normal-case"><?= e($t['campaign_name']) ?></span><?php endif; ?>
                     </div>
                 </a>

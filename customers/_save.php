@@ -66,6 +66,7 @@ $id = transaction(function () use ($ws, $row, $status, $existing, $now) {
     return $id;
 });
 
+link_contact_threads($ws, (string) $row['email']);
 clear_old_input();
 flash('success', empty($existing) ? 'Customer created.' : 'Customer updated.');
 redirect(url('customers/view.php', ['id' => $id]));

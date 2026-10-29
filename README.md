@@ -71,7 +71,7 @@ A lightweight email CRM and campaign manager that runs on ordinary shared hostin
 - `ALLOW_REGISTRATION=false` once your team has accounts. Add teammates in *Settings → Members*.
 
 ### Upgrading an existing install
-Import the files in `migrations/` once each, in order (phpMyAdmin → *Import*): `001_roles_and_tasks.sql`, then `002_closers_and_zoom.sql`, then `003_call_leads.sql`, then `004_zoom_hangup.sql`, then `005_lead_follow_up_dates.sql`, then `006_call_recordings.sql`, then `007_employees.sql`, then `008_leave_requests.sql`, then `009_wiki.sql`, then `010_site_audits.sql`, then `011_lead_approvals.sql`, then `012_payroll_expenses.sql`, then `013_ai_campaigns.sql`, then `014_leave_paid.sql`, then `015_sent_sync.sql`. Each is safe to run again. Fresh installs get these from `database.sql`.
+Import the files in `migrations/` once each, in order (phpMyAdmin → *Import*): `001_roles_and_tasks.sql`, then `002_closers_and_zoom.sql`, then `003_call_leads.sql`, then `004_zoom_hangup.sql`, then `005_lead_follow_up_dates.sql`, then `006_call_recordings.sql`, then `007_employees.sql`, then `008_leave_requests.sql`, then `009_wiki.sql`, then `010_site_audits.sql`, then `011_lead_approvals.sql`, then `012_payroll_expenses.sql`, then `013_ai_campaigns.sql`, then `014_leave_paid.sql`, then `015_sent_sync.sql`, then `016_contact_threads.sql`. Each is safe to run again. Fresh installs get these from `database.sql`.
 
 ---
 
@@ -124,7 +124,7 @@ cron/process-email-queue.php → sends them like any campaign mail
 - **Sent ≠ delivered.** With SMTP, *sent* only means the server accepted the message. *Delivered* needs provider webhooks (SendGrid, Mailgun, Amazon SES or generic JSON at `/webhooks/email.php?provider=…`, authenticated with `WEBHOOK_SECRET`).
 - **Opens are approximate.** Apple Mail Privacy Protection and corporate scanners pre-load images, and clients that block images never register an open.
 - **Bounces** come from webhooks or from bounce (DSN) messages read through IMAP. A hard bounce suppresses the customer.
-- **Mail sent outside the CRM** (webmail, Outlook, phone) is picked up from each mailbox's Sent folder (IMAP, found via the `\Sent` flag or a common name) or Gmail's SENT label by `check-inbox.php`. Only mail to existing customers, or replies in a known conversation, is imported; it appears in *Inbox → Sent* and in the thread marked *Outside CRM*, has no open/click tracking and does not count toward daily send limits. The CRM's own sends are recognised by Message-ID and not duplicated.
+- **Mail sent outside the CRM** (webmail, Outlook, phone) is picked up from each mailbox's Sent folder (IMAP, found via the `\Sent` flag or a common name) or Gmail's SENT label by `check-inbox.php`. All sent mail is imported. Mail to someone who is not a customer becomes a conversation with just their address (their replies land there too); adding that address as a customer later attaches those conversations to them. It appears in *Inbox → Sent* and in the thread marked *Outside CRM*, has no open/click tracking and does not count toward daily send limits. The CRM's own sends are recognised by Message-ID and not duplicated.
 - **Privacy.** IP and user-agent storage can be switched off, are erased after a retention period you choose, and can be purged on demand (*Settings → Tracking & privacy*).
 
 ## Zoom Phone calls

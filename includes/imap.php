@@ -274,7 +274,8 @@ function process_inbound_email(array $account, array $parsed, ?string $providerI
             );
         }
     }
-    if (!$original || !$original['customer_id']) {
+    // A reply to mail we have on record; its customer may be unknown (conversation held by contact_email)
+    if (!$original || (!$original['customer_id'] && !$original['thread_id'])) {
         return 'ignored';
     }
 
@@ -325,9 +326,9 @@ function process_inbound_email(array $account, array $parsed, ?string $providerI
 
 /**
  * Import a message from the mailbox's Sent folder that was sent outside the CRM (webmail, phone, Outlook).
- * Mail the CRM sent itself is recognised by Message-ID / provider id and skipped. Like inbound mail, only
- * conversations with customers are imported: a reply inside a known thread, or mail addressed to a customer.
- * Returns 'imported' or 'skipped'.
+ * Mail the CRM sent itself is recognised by Message-ID / provider id and skipped. Everything else is imported:
+ * into the known thread it replies to, else a conversation with the customer, else one held by the recipient's
+ * address. Returns 'imported' or 'skipped'.
  */
 function process_sent_email(array $account, array $parsed, ?string $providerId = null, ?string $providerThreadId = null): string
 {
@@ -381,16 +382,18 @@ function process_sent_email(array $account, array $parsed, ?string $providerId =
                 }
             }
         }
-        if (!$customer) {
-            return 'skipped';
-        }
+        // Not a customer: the conversation is held by their address until it becomes one (link_contact_threads)
+        $contact = $customer ? null : ($recipients[0] ?? null);
         $base = trim(preg_replace('/^((re|aw|sv|fw|fwd)\s*:\s*)+/i', '', $parsed['subject']));
-        $thread = $base !== '' ? q_one(
-            "SELECT t.* FROM email_threads t WHERE t.workspace_id = ? AND t.customer_id = ? AND t.subject IN (?, ?) ORDER BY t.last_message_at DESC LIMIT 1",
-            [$wsId, $customer['id'], $base, mb_substr($parsed['subject'], 0, 255)]
-        ) : null;
+        if ($base !== '' && ($customer || $contact)) {
+            $thread = q_one(
+                'SELECT t.* FROM email_threads t WHERE t.workspace_id = ? AND ' . ($customer ? 't.customer_id = ?' : 't.customer_id IS NULL AND t.contact_email = ?') . '
+                 AND t.subject IN (?, ?) ORDER BY t.last_message_at DESC LIMIT 1',
+                [$wsId, $customer ? $customer['id'] : $contact, $base, mb_substr($parsed['subject'], 0, 255)]
+            );
+        }
         if (!$thread) {
-            $tid = create_thread($wsId, (int) $customer['id'], null, (int) $account['id'], $parsed['subject'] !== '' ? $parsed['subject'] : '(no subject)');
+            $tid = create_thread($wsId, $customer ? (int) $customer['id'] : null, null, (int) $account['id'], $parsed['subject'] !== '' ? $parsed['subject'] : '(no subject)', null, $contact);
             q('UPDATE email_threads SET last_message_at = ?, provider_thread_id = ? WHERE id = ?', [$sentAt, $providerThreadId, $tid]);
             $thread = q_one('SELECT * FROM email_threads WHERE id = ?', [$tid]);
         }

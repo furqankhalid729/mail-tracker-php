@@ -25,5 +25,9 @@ cron_run('check-inbox', function () {
             $summary[$account['email']] = 'error: ' . $e->getMessage();
         }
     }
+    // Conversations with people added as customers since (by hand, import or lead conversion) move to that customer
+    if ($linked = link_contact_threads()) {
+        $summary['linked_to_customers'] = $linked;
+    }
     return $summary ?: 'no mailboxes configured';
 });
