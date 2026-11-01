@@ -14,40 +14,6 @@ require_permission('calls.manage');
 $ws = ws_id();
 $self = 'calls/numbers.php';
 
-/** Assign numbers to a user. Returns [added, skipped messages]. */
-$assign = function (int $userId, array $lines) use ($ws): array {
-    $added = 0;
-    $skipped = [];
-    foreach ($lines as [$number, $label]) {
-        // "(559) 451-0800; (559) 451-0808" in one cell: only the first number is assigned
-        $number = trim(preg_split('/[;|]+/', trim((string) $number, " ;|"))[0]);
-        $key = number_key($number);
-        if ($number === '' || !$key || strlen($key) < 3) {
-            if ($number !== '') {
-                $skipped[] = "$number (not a number)";
-            }
-            continue;
-        }
-        $owner = q_one('SELECT n.user_id, u.name FROM closer_numbers n JOIN users u ON u.id = n.user_id WHERE n.workspace_id = ? AND n.number_key = ?', [$ws, $key]);
-        if ($owner) {
-            if ((int) $owner['user_id'] !== $userId) {
-                $skipped[] = "$number (already assigned to {$owner['name']})";
-            }
-            continue;
-        }
-        db_insert('closer_numbers', [
-            'workspace_id' => $ws,
-            'user_id' => $userId,
-            'phone_number' => mb_substr($number, 0, 40),
-            'number_key' => $key,
-            'label' => ($label = trim((string) $label)) !== '' ? mb_substr($label, 0, 100) : null,
-            'created_at' => now(),
-        ]);
-        $added++;
-    }
-    return [$added, $skipped];
-};
-
 $report = function (int $added, array $skipped): void {
     flash($added ? 'success' : 'info', number_format($added) . ' number' . ($added === 1 ? '' : 's') . ' assigned.');
     if ($skipped) {
@@ -69,7 +35,7 @@ if (is_post()) {
         foreach (preg_split('/\R/', (string) input('numbers')) as $line) {
             $lines[] = array_pad(array_map('trim', explode(',', $line, 2)), 2, '');
         }
-        [$added, $skipped] = $assign($userId, $lines);
+        [$added, $skipped] = closer_numbers_assign($ws, $userId, $lines);
         zoom_reattribute($ws);
         $report($added, $skipped);
     } elseif ($action === 'upload') {
@@ -101,7 +67,7 @@ if (is_post()) {
         fclose($fh);
         $added = 0;
         foreach ($byUser as $uid => $lines) {
-            [$n, $s] = $assign($uid, $lines);
+            [$n, $s] = closer_numbers_assign($ws, $uid, $lines);
             $added += $n;
             $skipped = [...$skipped, ...$s];
         }

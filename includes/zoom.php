@@ -245,6 +245,44 @@ function zoom_reattribute(int $wsId): void
 }
 
 /**
+ * Assign numbers to a closer: $lines = [[number, label], …]. Numbers that already belong to this closer are ignored,
+ * ones owned by someone else are skipped. Returns [added, skipped messages]. Call zoom_reattribute() afterwards.
+ */
+function closer_numbers_assign(int $wsId, int $userId, array $lines): array
+{
+    $added = 0;
+    $skipped = [];
+    foreach ($lines as [$number, $label]) {
+        // "(559) 451-0800; (559) 451-0808" in one cell: only the first number is assigned
+        $number = trim(preg_split('/[;|]+/', trim((string) $number, " ;|"))[0]);
+        $key = number_key($number);
+        if ($number === '' || !$key || strlen($key) < 3) {
+            if ($number !== '') {
+                $skipped[] = "$number (not a number)";
+            }
+            continue;
+        }
+        $owner = q_one('SELECT n.user_id, u.name FROM closer_numbers n JOIN users u ON u.id = n.user_id WHERE n.workspace_id = ? AND n.number_key = ?', [$wsId, $key]);
+        if ($owner) {
+            if ((int) $owner['user_id'] !== $userId) {
+                $skipped[] = "$number (already assigned to {$owner['name']})";
+            }
+            continue;
+        }
+        db_insert('closer_numbers', [
+            'workspace_id' => $wsId,
+            'user_id' => $userId,
+            'phone_number' => mb_substr($number, 0, 40),
+            'number_key' => $key,
+            'label' => ($label = trim((string) $label)) !== '' ? mb_substr($label, 0, 100) : null,
+            'created_at' => now(),
+        ]);
+        $added++;
+    }
+    return [$added, $skipped];
+}
+
+/**
  * Pull call history for one workspace, oldest unsynced window first, within $budget seconds.
  * Returns counts. Safe to call from cron and from the "Sync now" button at the same time.
  */

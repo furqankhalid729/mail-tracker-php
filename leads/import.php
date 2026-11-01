@@ -3,6 +3,7 @@
  * Lead import wizard: Upload → Map columns + assign → Import (batched over AJAX) → Summary.
  * Built for scraped lists (Google Maps exports, website/email/phone sheets). Unmapped columns are kept as extra fields.
  * Duplicates: a row whose phone already belongs to a lead (or, without phones, the same name + website) is skipped.
+ * "Add numbers to assignee" also puts each imported lead's phones on the assignee's call numbers (Calls → Numbers).
  */
 require_once __DIR__ . '/../includes/init.php';
 require_auth();
@@ -35,7 +36,7 @@ if (is_post() && input('action') === 'process') {
     }
     [$rows, $next, $eof] = csv_read_batch($path($state), $state['delimiter'], $offset, LEAD_IMPORT_BATCH);
 
-    $s = $_SESSION['lead_import']['result'] ?? ['rows' => 0, 'imported' => 0, 'duplicates' => 0, 'empty' => 0];
+    $s = $_SESSION['lead_import']['result'] ?? ['rows' => 0, 'imported' => 0, 'duplicates' => 0, 'empty' => 0, 'numbers' => 0, 'numbers_skipped' => 0];
     $newIds = [];
     $now = now();
     transaction(function () use ($rows, $state, $ws, $now, &$s, &$newIds) {
@@ -84,6 +85,11 @@ if (is_post() && input('action') === 'process') {
                 'updated_at' => $now,
             ]);
             lead_set_phones($ws, $id, $phones);
+            if (!empty($state['add_numbers']) && $phones) {
+                [$added, $skipped] = closer_numbers_assign($ws, (int) $state['assigned_to'], array_map(fn($p) => [$p[0], $state['source']], $phones));
+                $s['numbers'] += $added;
+                $s['numbers_skipped'] += count($skipped);
+            }
             log_lead_activity($id, 'imported', null, null, $state['name']);
             if ($state['status_id'] && !empty(lead_statuses($ws)[(int) $state['status_id']]['requires_approval'])) {
                 lead_approval_sync($id, (int) $state['status_id'], $state['assigned_to'] ? (int) $state['assigned_to'] : null);
@@ -100,6 +106,9 @@ if (is_post() && input('action') === 'process') {
     if ($done) {
         @unlink($path($state));
         $_SESSION['lead_import']['finished'] = true;
+        if (!empty($state['add_numbers'])) {
+            zoom_reattribute($ws); // past Zoom calls on these numbers now count for the assignee
+        }
     }
     json_response(['ok' => true, 'offset' => $next, 'done' => $done, 'stats' => $s, 'progress' => min(100, round($next / max(1, $state['size']) * 100))]);
 }
@@ -143,6 +152,7 @@ if (is_post() && input('action') === 'map' && $state) {
         'mapping' => $mapping,
         'duplicate' => input('duplicate') === 'import' ? 'import' : 'skip',
         'assigned_to' => $assignee && is_workspace_user($assignee) ? $assignee : null,
+        'add_numbers' => $assignee && is_workspace_user($assignee) && input('add_numbers') === '1' && allowed('calls.manage'),
         'status_id' => isset($statuses[input_int('status_id')]) ? input_int('status_id') : lead_default_status_id($ws),
         'source' => mb_substr(trim((string) input('source')), 0, 100),
     ]);
@@ -263,6 +273,12 @@ $steps = ['upload' => 'Upload', 'map' => 'Map & assign', 'run' => 'Import'];
                         <?php foreach ($members as $m): ?><option value="<?= (int) $m['id'] ?>" <?= (int) ($state['assigned_to'] ?? 0) === (int) $m['id'] ? 'selected' : '' ?>><?= e($m['name']) ?><?= $m['role'] === 'closer' ? '' : ' (' . e(role_label($m['role'])) . ')' ?></option><?php endforeach; ?>
                     </select>
                 </div>
+                <?php if (allowed('calls.manage')): ?>
+                    <label class="flex cursor-pointer gap-3" x-data="{ assignee: document.getElementById('assigned_to').value }" @change.window="assignee = document.getElementById('assigned_to').value" :class="assignee === '0' && 'opacity-50'">
+                        <input type="checkbox" name="add_numbers" value="1" class="mt-0.5 rounded text-indigo-600" :disabled="assignee === '0'" <?= !empty($state['add_numbers']) ? 'checked' : '' ?>>
+                        <span><span class="block text-sm font-medium">Also add the phone numbers to this person</span><span class="text-xs text-slate-500">Puts every imported lead's numbers on their Calls → Numbers list, so calls to these leads count for them. No separate number upload needed.</span></span>
+                    </label>
+                <?php endif; ?>
                 <div>
                     <label class="label" for="status_id">Starting status</label>
                     <select class="input" id="status_id" name="status_id">
@@ -296,7 +312,7 @@ $steps = ['upload' => 'Upload', 'map' => 'Map & assign', 'run' => 'Import'];
     <div class="card max-w-3xl p-6" x-data="leadImport(<?= !empty($state['finished']) ? 'true' : 'false' ?>, <?= e(json_encode($state['result'] ?? null)) ?>)">
         <div class="flex items-center justify-between">
             <h2 class="card-title" x-text="phase === 'ready' ? 'Ready to import' : (phase === 'import' ? 'Importing…' : 'Import complete')"></h2>
-            <span class="text-xs text-slate-500"><?= e($state['name']) ?> · assigned to <b><?= e($assigneeName) ?></b> · duplicates: <b><?= e($state['duplicate']) ?></b></span>
+            <span class="text-xs text-slate-500"><?= e($state['name']) ?> · assigned to <b><?= e($assigneeName) ?></b> · duplicates: <b><?= e($state['duplicate']) ?></b><?= !empty($state['add_numbers']) ? ' · numbers added to assignee' : '' ?></span>
         </div>
         <div class="mt-4 h-2 overflow-hidden rounded-full bg-slate-100"><div class="h-full rounded-full bg-indigo-600 transition-all" :style="`width: ${progress}%`"></div></div>
 
@@ -307,6 +323,9 @@ $steps = ['upload' => 'Upload', 'map' => 'Map & assign', 'run' => 'Import'];
                 <div class="rounded-lg bg-amber-50 p-3"><div class="text-xs text-amber-700">Duplicates skipped</div><div class="text-xl font-semibold text-amber-700" x-text="result.duplicates.toLocaleString()"></div></div>
                 <div class="rounded-lg bg-red-50 p-3"><div class="text-xs text-red-700">Empty rows</div><div class="text-xl font-semibold text-red-700" x-text="result.empty.toLocaleString()"></div></div>
             </div>
+        </template>
+        <template x-if="result && <?= !empty($state['add_numbers']) ? 'true' : 'false' ?>">
+            <p class="mt-3 text-sm text-slate-600"><b x-text="(result.numbers || 0).toLocaleString()"></b> numbers added to <?= e($assigneeName) ?><span x-show="result.numbers_skipped"> · <span x-text="(result.numbers_skipped || 0).toLocaleString()"></span> skipped (already assigned to someone else)</span>.</p>
         </template>
 
         <p x-show="error" x-text="error" class="mt-4 text-sm text-red-600"></p>
