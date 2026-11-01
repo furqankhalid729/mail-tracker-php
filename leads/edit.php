@@ -116,6 +116,10 @@ require __DIR__ . '/../includes/header.php';
             <label class="label" for="source">Source / list</label>
             <input class="input" id="source" name="source" value="<?= e($v('source')) ?>" maxlength="100">
         </div>
+        <div>
+            <label class="label" for="category">Category</label>
+            <input class="input" id="category" name="category" value="<?= e($v('category')) ?>" maxlength="150" placeholder="Plumber">
+        </div>
         <?php $cur = (int) $v('status_id', lead_default_status_id($ws)); ?>
         <div x-data="{ needsDate: <?= !empty($statuses[$cur]['requires_date']) ? 'true' : 'false' ?> }">
             <label class="label" for="status_id">Status</label>

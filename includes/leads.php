@@ -23,6 +23,7 @@ const LEAD_FIELDS = [
     'phones' => 'Phone(s)',
     'emails' => 'Email(s)',
     'website' => 'Website',
+    'category' => 'Category',
     'address' => 'Address',
     'rating' => 'Rating',
     'reviews_count' => 'Reviews count',
@@ -30,7 +31,7 @@ const LEAD_FIELDS = [
     'notes' => 'Notes',
 ];
 
-const LEAD_FILTER_KEYS = ['q', 'status', 'approval', 'assigned', 'attempts', 'last_call', 'connected', 'has_phone', 'has_email', 'has_website', 'min_rating', 'source', 'field', 'field_value', 'tz'];
+const LEAD_FILTER_KEYS = ['q', 'status', 'approval', 'assigned', 'attempts', 'last_call', 'connected', 'has_phone', 'has_email', 'has_website', 'min_rating', 'source', 'category', 'field', 'field_value', 'tz'];
 
 /* ---------------------------------------------------------------------------
  * Statuses
@@ -376,6 +377,10 @@ function lead_filter_sql(array $f, bool $withStatus = true): array
         $where[] = 'l.source = ?';
         $params[] = $f['source'];
     }
+    if (!empty($f['category'])) {
+        $where[] = 'l.category = ?';
+        $params[] = $f['category'];
+    }
     if (!empty($f['field']) && isset($f['field_value']) && ($path = lead_extra_path($f['field']))) {
         $where[] = 'JSON_UNQUOTE(JSON_EXTRACT(l.extra_fields, ?)) LIKE ?';
         array_push($params, $path, '%' . str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $f['field_value']) . '%');
@@ -484,6 +489,7 @@ function lead_data_from_input(array $in): array
     return [
         'name' => mb_substr(trim((string) ($in['name'] ?? '')), 0, 255),
         'website' => lead_clean_website($in['website'] ?? null),
+        'category' => ($c = trim((string) ($in['category'] ?? ''))) !== '' ? mb_substr($c, 0, 150) : null,
         'address' => ($a = trim((string) ($in['address'] ?? ''))) !== '' ? mb_substr($a, 0, 500) : null,
         'rating' => is_numeric($rating) ? max(0, min(5, round((float) $rating, 1))) : null,
         'reviews_count' => $reviews !== '' ? min(4294967295, (int) $reviews) : null,

@@ -222,6 +222,7 @@ $steps = ['upload' => 'Upload', 'map' => 'Map & assign', 'run' => 'Import'];
             'name' => 'name', 'businessname' => 'name', 'company' => 'name', 'companyname' => 'name', 'title' => 'name', 'business' => 'name',
             'phone' => 'phones', 'phones' => 'phones', 'phonenumber' => 'phones', 'phonenumbers' => 'phones', 'telephone' => 'phones', 'mobile' => 'phones', 'tel' => 'phones',
             'email' => 'emails', 'emails' => 'emails', 'emailaddress' => 'emails', 'mail' => 'emails',
+            'category' => 'category', 'categoryname' => 'category', 'categories' => 'category', 'industry' => 'category', 'niche' => 'category', 'businesstype' => 'category', 'type' => 'category',
             'website' => 'website', 'url' => 'website', 'site' => 'website', 'domain' => 'website', 'web' => 'website',
             'address' => 'address', 'fulladdress' => 'address', 'streetaddress' => 'address', 'location' => 'address',
             'rating' => 'rating', 'stars' => 'rating', 'totalscore' => 'rating',

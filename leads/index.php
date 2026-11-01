@@ -40,6 +40,10 @@ $sources = q_col("SELECT DISTINCT source FROM leads WHERE workspace_id = ? AND s
 if (!empty($filters['source']) && !in_array($filters['source'], $sources, true)) {
     $sources[] = $filters['source']; // keep a filter on a now-empty list visible so it can be cleared
 }
+$categories = q_col("SELECT DISTINCT category FROM leads WHERE workspace_id = ? AND category IS NOT NULL AND category <> '' ORDER BY category LIMIT 500", [$ws]);
+if (!empty($filters['category']) && !in_array($filters['category'], $categories, true)) {
+    $categories[] = $filters['category'];
+}
 $extraKeys = lead_extra_keys($ws);
 $tzCounts = lead_time_zone_counts($filters);
 [$whereNoTz, $paramsNoTz] = lead_filter_sql(array_diff_key($filters, ['tz' => 1]));
@@ -175,6 +179,15 @@ require __DIR__ . '/../includes/header.php';
                     <select name="source" class="input">
                         <option value="">Any</option>
                         <?php foreach ($sources as $s): ?><option <?= ($filters['source'] ?? '') === $s ? 'selected' : '' ?>><?= e($s) ?></option><?php endforeach; ?>
+                    </select>
+                </div>
+            <?php endif; ?>
+            <?php if ($categories): ?>
+                <div>
+                    <label class="label">Category</label>
+                    <select name="category" class="input">
+                        <option value="">Any</option>
+                        <?php foreach ($categories as $c): ?><option <?= ($filters['category'] ?? '') === $c ? 'selected' : '' ?>><?= e($c) ?></option><?php endforeach; ?>
                     </select>
                 </div>
             <?php endif; ?>

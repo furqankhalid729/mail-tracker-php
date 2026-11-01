@@ -45,6 +45,7 @@ require __DIR__ . '/../includes/header.php';
             <?php if ($lead['approval_status']): ?><span class="ml-2"><?= lead_approval_badge($lead) ?></span><?php endif; ?>
             <?php if ($lead['follow_up_on']): ?><span class="ml-2"><?= lead_follow_up_badge($lead['follow_up_on'], 'text-sm') ?></span><?php endif; ?>
             <?php if ($lead['rating'] !== null): ?><span class="ml-2">★ <?= e($lead['rating']) ?><?= $lead['reviews_count'] !== null ? ' (' . number_format((int) $lead['reviews_count']) . ' reviews)' : '' ?></span><?php endif; ?>
+            <?php if ($lead['category']): ?><a href="<?= e(url('leads/index.php', ['category' => $lead['category']])) ?>" class="badge badge-slate ml-2"><?= e($lead['category']) ?></a><?php endif; ?>
             <?php if ($lead['source']): ?><span class="ml-2 text-slate-400">· <?= e($lead['source']) ?></span><?php endif; ?>
         </p>
     </div>
