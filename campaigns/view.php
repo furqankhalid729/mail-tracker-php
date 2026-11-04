@@ -32,6 +32,7 @@ $viewUrl = fn(array $extra = []) => url('campaigns/view.php', array_merge(['id' 
         <p class="page-subtitle">
             <?= $account ? 'From ' . e($account['email']) : '<span class="text-amber-600">No sender</span>' ?> ·
             <?= $template ? 'Template ' . (allowed('templates.manage') ? '<a class="text-indigo-600" href="' . e(url('templates/edit.php', ['id' => $template['id']])) . '">' . e($template['name']) . '</a>' : e($template['name'])) : '<span class="text-amber-600">No template</span>' ?>
+            · <?= !empty($campaign['daily_limit']) ? number_format((int) $campaign['daily_limit']) . '/day' : 'no daily cap' ?>
             <?php if ($campaign['started_at']): ?> · started <?= e(format_dt($campaign['started_at'], 'M j, Y')) ?><?php endif; ?>
         </p>
         <?php if ($campaign['description']): ?><p class="mt-1 max-w-2xl text-sm text-slate-500"><?= e($campaign['description']) ?></p><?php endif; ?>

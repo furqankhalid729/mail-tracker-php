@@ -1,7 +1,8 @@
 <?php
 defined('APP_ROOT') || exit;
 /** Expects $ws, $existing (array|null). */
-$errors = validate($_POST, ['name' => 'required|max:150', 'description' => 'max:2000']);
+$errors = validate($_POST, ['name' => 'required|max:150', 'description' => 'max:2000', 'daily_limit' => 'int|between:1,10000'], ['daily_limit' => 'Daily limit']);
+$dailyLimit = input_int('daily_limit') ?: null; // empty = no campaign cap
 $accountId = input_int('mail_account_id') ?: null;
 $templateId = input_int('template_id') ?: null;
 if ($accountId && !owned_ids('mail_accounts', [$accountId])) {
@@ -23,10 +24,16 @@ $data = [
     'description' => trim((string) input('description')) ?: null,
     'mail_account_id' => $accountId,
     'template_id' => $templateId,
+    'daily_limit' => $dailyLimit,
     'updated_at' => now(),
 ];
 if ($existing) {
     db_update('campaigns', $data, 'id = ? AND workspace_id = ?', [$existing['id'], $ws]);
+    // Limit raised or removed → emails parked until tomorrow by the campaign cap can go out today
+    $oldLimit = $existing['daily_limit'] === null ? null : (int) $existing['daily_limit'];
+    if ($oldLimit !== null && ($dailyLimit === null || $dailyLimit > $oldLimit)) {
+        release_campaign_deferred_jobs((int) $existing['id']);
+    }
     // Not-yet-sent messages follow a sender change
     if ($accountId && (int) $existing['mail_account_id'] !== $accountId) {
         q("UPDATE email_messages SET mail_account_id = ?, from_email = (SELECT email FROM mail_accounts WHERE id = ?) WHERE campaign_id = ? AND status = 'queued'", [$accountId, $accountId, $existing['id']]);

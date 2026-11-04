@@ -160,6 +160,21 @@ function sent_today_for_account(int $accountId): int
     return (int) q_val("SELECT COUNT(*) FROM email_messages WHERE mail_account_id = ? AND direction = 'outbound' AND is_external = 0 AND sent_at >= ?", [$accountId, date('Y-m-d 00:00:00')]);
 }
 
+function sent_today_for_campaign(int $campaignId): int
+{
+    return (int) q_val("SELECT COUNT(*) FROM email_messages WHERE campaign_id = ? AND direction = 'outbound' AND sent_at >= ?", [$campaignId, date('Y-m-d 00:00:00')]);
+}
+
+/** After a campaign's daily limit is raised or removed, its jobs parked until tomorrow become due again. */
+function release_campaign_deferred_jobs(int $campaignId): void
+{
+    q(
+        "UPDATE email_jobs SET scheduled_at = ?, error_message = NULL
+         WHERE campaign_id = ? AND status = 'pending' AND error_message = 'Campaign daily limit reached'",
+        [now(), $campaignId]
+    );
+}
+
 function sent_today_for_workspace(int $wsId): int
 {
     return (int) q_val("SELECT COUNT(*) FROM email_messages WHERE workspace_id = ? AND direction = 'outbound' AND is_external = 0 AND sent_at >= ?", [$wsId, date('Y-m-d 00:00:00')]);
@@ -194,6 +209,8 @@ function process_email_queue(?int $limitOverride = null): array
     $workspaces = [];
     $accountCounts = [];
     $workspaceCounts = [];
+    $campaignCounts = [];
+    $campaignLimits = [];
     $perWorkspaceRun = [];
     $tomorrow = date('Y-m-d 00:05:00', strtotime('+1 day'));
 
@@ -246,6 +263,28 @@ function process_email_queue(?int $limitOverride = null): array
             continue;
         }
 
+        // Daily limit: per campaign (NULL = no campaign cap)
+        $campId = (int) $message['campaign_id'];
+        if ($campId) {
+            if (!array_key_exists($campId, $campaignLimits)) {
+                $lim = q_val('SELECT daily_limit FROM campaigns WHERE id = ?', [$campId]);
+                $campaignLimits[$campId] = $lim === null || $lim === false ? null : (int) $lim;
+            }
+            if ($campaignLimits[$campId] !== null) {
+                $campaignCounts[$campId] ??= sent_today_for_campaign($campId);
+                if ($campaignCounts[$campId] >= $campaignLimits[$campId]) {
+                    release_job((int) $job['id'], $tomorrow, 'Campaign daily limit reached');
+                    q(
+                        "UPDATE email_jobs SET scheduled_at = ?, error_message = 'Campaign daily limit reached'
+                         WHERE campaign_id = ? AND status = 'pending' AND scheduled_at < ?",
+                        [$tomorrow, $campId, $tomorrow]
+                    );
+                    $summary['deferred']++;
+                    continue;
+                }
+            }
+        }
+
         // Daily limits: workspace and mail account
         $accId = (int) $message['mail_account_id'];
         $workspaceCounts[$wsId] ??= sent_today_for_workspace($wsId);
@@ -281,6 +320,9 @@ function process_email_queue(?int $limitOverride = null): array
             complete_job((int) $job['id']);
             $summary['sent']++;
             $workspaceCounts[$wsId]++;
+            if ($campId && isset($campaignCounts[$campId])) {
+                $campaignCounts[$campId]++;
+            }
             if ($accId) {
                 $accountCounts[$accId]++;
             }

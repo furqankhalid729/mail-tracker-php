@@ -35,6 +35,12 @@ $v = fn(string $k) => old($k, $campaign[$k] ?? '');
                 <?= field_error($errors, 'template_id') ?>
             </div>
         </div>
+        <div class="max-w-xs">
+            <label class="label" for="daily_limit">Daily send limit (this campaign)</label>
+            <input class="input" id="daily_limit" type="number" min="1" max="10000" name="daily_limit" value="<?= e((string) $v('daily_limit')) ?>" placeholder="No limit">
+            <p class="help">Emails per day for this campaign only; the rest wait for the next day. Start low (20–25) on a new mailbox and raise it any time. Mail account and workspace limits still apply.</p>
+            <?= field_error($errors, 'daily_limit') ?>
+        </div>
         <p class="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">Each contact gets their own personalised copy of the template with an unsubscribe link. Emails are queued when you start the campaign and sent by cron within your sending limits.</p>
         <div class="flex justify-end gap-2">
             <a href="<?= e(url(!empty($campaign['id']) ? 'campaigns/view.php?id=' . (int) $campaign['id'] : 'campaigns/index.php')) ?>" class="btn-secondary">Cancel</a>

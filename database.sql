@@ -156,6 +156,7 @@ CREATE TABLE IF NOT EXISTS campaigns (
     status ENUM('draft','active','paused','completed','archived') NOT NULL DEFAULT 'draft',
     mail_account_id INT UNSIGNED NULL,
     template_id INT UNSIGNED NULL,
+    daily_limit INT UNSIGNED NULL,
     created_by INT UNSIGNED NULL,
     started_at DATETIME NULL,
     completed_at DATETIME NULL,
