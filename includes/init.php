@@ -36,6 +36,7 @@ require_once __DIR__ . '/mime.php';
 require_once __DIR__ . '/tracking.php';
 require_once __DIR__ . '/gmail.php';
 require_once __DIR__ . '/email.php';
+require_once __DIR__ . '/email-validation.php';
 require_once __DIR__ . '/queue.php';
 require_once __DIR__ . '/imap.php';
 require_once __DIR__ . '/webhooks.php';

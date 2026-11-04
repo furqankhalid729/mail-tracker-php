@@ -6,7 +6,7 @@ declare(strict_types=1);
  */
 
 /** Filter keys accepted from the request. */
-const CUSTOMER_FILTER_KEYS = ['q', 'tags', 'tag_mode', 'status', 'crm_status', 'country', 'company', 'has_company', 'source', 'campaign_id', 'not_in_campaign', 'created_from', 'created_to'];
+const CUSTOMER_FILTER_KEYS = ['q', 'tags', 'tag_mode', 'status', 'crm_status', 'country', 'company', 'has_company', 'email_check', 'source', 'campaign_id', 'not_in_campaign', 'created_from', 'created_to'];
 
 function customer_filters_from_request(): array
 {
@@ -69,6 +69,14 @@ function customer_filter_sql(int $wsId, array $f): array
     }
     if (isset($f['has_company']) && $f['has_company'] !== '') {
         $where[] = $f['has_company'] ? "(c.company IS NOT NULL AND c.company <> '')" : "(c.company IS NULL OR c.company = '')";
+    }
+    if (!empty($f['email_check'])) {
+        if ($f['email_check'] === 'unchecked') {
+            $where[] = 'c.email_check IS NULL';
+        } elseif (in_array($f['email_check'], ['valid', 'risky', 'invalid'], true)) {
+            $where[] = 'c.email_check = ?';
+            $params[] = $f['email_check'];
+        }
     }
     if (!empty($f['source'])) {
         $where[] = 'c.source = ?';

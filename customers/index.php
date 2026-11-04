@@ -111,6 +111,13 @@ require __DIR__ . '/../includes/header.php';
                         <option value="0" <?= ($filters['has_company'] ?? '') === '0' ? 'selected' : '' ?>>No company</option>
                     </select>
                 </div>
+                <div>
+                    <label class="label">Email check (SES)</label>
+                    <select name="email_check" class="input">
+                        <option value="">Any</option>
+                        <?php foreach (['valid' => 'Valid', 'risky' => 'Risky', 'invalid' => 'Invalid', 'unchecked' => 'Not checked yet'] as $k => $l): ?><option value="<?= $k ?>" <?= ($filters['email_check'] ?? '') === $k ? 'selected' : '' ?>><?= $l ?></option><?php endforeach; ?>
+                    </select>
+                </div>
             </div>
             <div class="space-y-3">
                 <div>

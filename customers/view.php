@@ -123,6 +123,14 @@ $actionUrl = url('customers/actions.php');
     <?php if ($customer['unsubscribed_at']): ?>
         <div class="mt-4 rounded-lg bg-amber-50 px-4 py-2.5 text-sm text-amber-800 ring-1 ring-amber-200">Unsubscribed on <?= e(format_dt($customer['unsubscribed_at'])) ?>. Campaign emails are suppressed for this contact.</div>
     <?php endif; ?>
+    <?php if (!empty($customer['email_check'])): ?>
+        <?php $chk = $customer['email_check']; $tone = $chk === 'invalid' ? 'bg-red-50 text-red-800 ring-red-200' : ($chk === 'risky' ? 'bg-amber-50 text-amber-800 ring-amber-200' : 'bg-emerald-50 text-emerald-800 ring-emerald-200'); ?>
+        <div class="mt-4 rounded-lg px-4 py-2.5 text-sm ring-1 <?= $tone ?>">
+            Email check: <strong><?= e(ucfirst($chk)) ?></strong><?= $customer['email_check_detail'] ? ' — ' . e($customer['email_check_detail']) : '' ?>
+            <span class="opacity-70">(<?= e(format_dt($customer['email_checked_at'], 'M j, Y')) ?>)</span>
+            <?php if ($customer['status'] === 'invalid'): ?><br><span class="text-xs">Campaign emails are blocked. If you know the address is correct, set the status back to <em>Active</em> to send anyway.</span><?php endif; ?>
+        </div>
+    <?php endif; ?>
 </div>
 
 <div class="grid gap-6 lg:grid-cols-3">

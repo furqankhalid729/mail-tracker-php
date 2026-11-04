@@ -422,7 +422,7 @@ function status_badge(?string $status): string
     $map = [
         'draft' => 'slate', 'queued' => 'slate', 'pending' => 'slate', 'sending' => 'blue', 'processing' => 'blue',
         'sent' => 'blue', 'delivered' => 'sky', 'opened' => 'violet', 'clicked' => 'indigo', 'replied' => 'green',
-        'received' => 'green', 'bounced' => 'red', 'failed' => 'red', 'cancelled' => 'slate', 'unsubscribed' => 'amber',
+        'received' => 'green', 'bounced' => 'red', 'failed' => 'red', 'invalid' => 'red', 'risky' => 'amber', 'valid' => 'green', 'cancelled' => 'slate', 'unsubscribed' => 'amber',
         'ready' => 'indigo', 'skipped' => 'amber', 'active' => 'green', 'paused' => 'amber', 'completed' => 'sky', 'archived' => 'slate', 'error' => 'red',
         'disconnected' => 'slate', 'New' => 'slate', 'Contacted' => 'blue', 'Interested' => 'violet',
         'Qualified' => 'indigo', 'Follow Up' => 'amber', 'Won' => 'green', 'Lost' => 'red',

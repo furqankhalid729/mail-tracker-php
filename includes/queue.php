@@ -187,7 +187,7 @@ function sent_today_for_workspace(int $wsId): int
 function process_email_queue(?int $limitOverride = null): array
 {
     $start = microtime(true);
-    $summary = ['released_stale' => release_stale_jobs(), 'built' => 0, 'claimed' => 0, 'sent' => 0, 'retry' => 0, 'failed' => 0, 'skipped' => 0, 'deferred' => 0];
+    $summary = ['released_stale' => release_stale_jobs(), 'built' => 0, 'claimed' => 0, 'sent' => 0, 'retry' => 0, 'failed' => 0, 'skipped' => 0, 'deferred' => 0, 'invalid' => 0];
 
     // Build messages for active campaigns that still have unqueued contacts (bounded per run)
     foreach (q_col("SELECT id FROM campaigns WHERE status = 'active'") as $cid) {
@@ -248,9 +248,9 @@ function process_email_queue(?int $limitOverride = null): array
         }
 
         // Suppression: unsubscribed / bounced recipients never receive campaign mail
-        $customer = $message['customer_id'] ? q_one('SELECT id, status, unsubscribed_at FROM customers WHERE id = ?', [$message['customer_id']]) : null;
-        if (($message['campaign_id'] || $message['ai_campaign_id']) && (!$customer || $customer['unsubscribed_at'] !== null || in_array($customer['status'], ['unsubscribed', 'bounced'], true))) {
-            q("UPDATE email_messages SET status = 'cancelled', error_message = 'Recipient suppressed (unsubscribed or bounced)', updated_at = ? WHERE id = ?", [now(), $message['id']]);
+        $customer = $message['customer_id'] ? q_one('SELECT id, email, status, unsubscribed_at, email_check, email_checked_address, email_checked_at FROM customers WHERE id = ?', [$message['customer_id']]) : null;
+        if (($message['campaign_id'] || $message['ai_campaign_id']) && (!$customer || $customer['unsubscribed_at'] !== null || in_array($customer['status'], ['unsubscribed', 'bounced', 'invalid'], true))) {
+            q("UPDATE email_messages SET status = 'cancelled', error_message = 'Recipient suppressed (unsubscribed, bounced or invalid email)', updated_at = ? WHERE id = ?", [now(), $message['id']]);
             complete_job((int) $job['id'], 'cancelled', 'Recipient suppressed');
             $summary['skipped']++;
             continue;
@@ -311,6 +311,22 @@ function process_email_queue(?int $limitOverride = null): array
                     [$tomorrow, $accId, $tomorrow]
                 );
                 $summary['deferred']++;
+                continue;
+            }
+        }
+
+        // SES email validation (campaign mail only), after the limits so we only pay for mail that would go out now
+        if ($customer && ($message['campaign_id'] || $message['ai_campaign_id'])) {
+            $gate = email_validation_gate($customer);
+            if (isset($gate['defer'])) {
+                release_job((int) $job['id'], date('Y-m-d H:i:s', time() + $gate['defer']), mb_substr($gate['reason'], 0, 500));
+                $summary['deferred']++;
+                continue;
+            }
+            if (!$gate['send']) {
+                q("UPDATE email_messages SET status = 'cancelled', error_message = ?, updated_at = ? WHERE id = ?", [mb_substr($gate['reason'], 0, 500), now(), $message['id']]);
+                complete_job((int) $job['id'], 'cancelled', $gate['reason']);
+                $summary['invalid']++;
                 continue;
             }
         }

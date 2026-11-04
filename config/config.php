@@ -86,6 +86,16 @@ define('PAGESPEED_API_KEY', (string) env('PAGESPEED_API_KEY', ''));
 define('OPENROUTER_API_KEY', (string) env('OPENROUTER_API_KEY', ''));
 define('OPENROUTER_DEFAULT_MODEL', (string) (env('OPENROUTER_DEFAULT_MODEL', '') ?: 'deepseek/deepseek-v4.1-flash'));
 define('OPENROUTER_API_BASE', rtrim((string) env('OPENROUTER_API_BASE', 'https://openrouter.ai/api/v1'), '/'));
+// Amazon SES email validation (GetEmailAddressInsights), checked before campaign mail is sent. Costs ~$0.01 per address.
+// AWS_SECERT_KEY (typo) is accepted for existing .env files.
+define('AWS_ACCESS_KEY', (string) env('AWS_ACCESS_KEY', ''));
+define('AWS_SECRET_KEY', (string) (env('AWS_SECRET_KEY', '') ?: env('AWS_SECERT_KEY', '')));
+define('AWS_REGION', (string) (env('AWS_REGION', '') ?: 'us-east-1'));
+define('SES_VALIDATION_ENABLED', (bool) env('SES_VALIDATION_ENABLED', true) && AWS_ACCESS_KEY !== '' && AWS_SECRET_KEY !== '');
+// Also block MEDIUM-confidence ("risky") addresses, not just LOW ("invalid") ones
+define('SES_VALIDATION_BLOCK_RISKY', (bool) env('SES_VALIDATION_BLOCK_RISKY', false));
+// Re-check a stored result after this many days
+define('SES_VALIDATION_CACHE_DAYS', (int) env('SES_VALIDATION_CACHE_DAYS', 180));
 // Branding on inspector PDF reports. REPORT_BRAND_LOGO is a path under the app folder to a light/white logo (PNG/JPG).
 define('REPORT_BRAND_NAME', (string) env('REPORT_BRAND_NAME', APP_NAME));
 define('REPORT_BRAND_URL', (string) env('REPORT_BRAND_URL', ''));
