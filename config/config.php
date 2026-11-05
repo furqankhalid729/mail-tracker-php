@@ -94,6 +94,12 @@ define('AWS_REGION', (string) (env('AWS_REGION', '') ?: 'us-east-1'));
 define('SES_VALIDATION_ENABLED', (bool) env('SES_VALIDATION_ENABLED', true) && AWS_ACCESS_KEY !== '' && AWS_SECRET_KEY !== '');
 // Also block MEDIUM-confidence ("risky") addresses, not just LOW ("invalid") ones
 define('SES_VALIDATION_BLOCK_RISKY', (bool) env('SES_VALIDATION_BLOCK_RISKY', false));
+// Free pre-checks before SES (syntax + domain MX record). Failing addresses are marked invalid and never sent to SES.
+define('EMAIL_PRECHECK_ENABLED', (bool) env('EMAIL_PRECHECK_ENABLED', true));
+// Role addresses (info@, sales@…): 'send' = send without a paid check, 'block' = mark invalid, 'check' = treat like any address
+define('EMAIL_ROLE_POLICY', in_array($rp = strtolower((string) env('EMAIL_ROLE_POLICY', 'send')), ['send', 'block', 'check'], true) ? $rp : 'send');
+// A domain blocked after a domain-level bounce (no MX, domain not found…) stays blocked this many days after its last bounce
+define('EMAIL_DOMAIN_BLOCK_DAYS', (int) env('EMAIL_DOMAIN_BLOCK_DAYS', 90));
 // Re-check a stored result after this many days
 define('SES_VALIDATION_CACHE_DAYS', (int) env('SES_VALIDATION_CACHE_DAYS', 180));
 // Branding on inspector PDF reports. REPORT_BRAND_LOGO is a path under the app folder to a light/white logo (PNG/JPG).

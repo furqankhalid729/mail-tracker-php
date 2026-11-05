@@ -994,3 +994,12 @@ CREATE TABLE IF NOT EXISTS ai_campaign_contacts (
     CONSTRAINT fk_ai_cc_campaign FOREIGN KEY (ai_campaign_id) REFERENCES ai_campaigns(id) ON DELETE CASCADE,
     CONSTRAINT fk_ai_cc_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Domains learned from domain-level bounces (no MX, domain not found…); contacts there fail the free email check
+CREATE TABLE IF NOT EXISTS blocked_email_domains (
+    domain VARCHAR(190) NOT NULL PRIMARY KEY,
+    reason VARCHAR(190) NULL,
+    bounce_count INT UNSIGNED NOT NULL DEFAULT 1,
+    first_bounced_at DATETIME NOT NULL,
+    last_bounced_at DATETIME NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

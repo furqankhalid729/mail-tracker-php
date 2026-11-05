@@ -197,6 +197,10 @@ function apply_delivery_status(array $message, string $type, array $meta = [], ?
         if (($meta['bounce_type'] ?? 'hard') === 'hard' && $message['customer_id']) {
             q("UPDATE customers SET status = 'bounced', updated_at = ? WHERE id = ? AND status = 'active'", [$now, $message['customer_id']]);
         }
+        if (($meta['bounce_type'] ?? 'hard') === 'hard' && !empty($message['to_email'])) {
+            // Domain-level failure (no MX, domain not found…) → block the domain for every other contact there
+            email_learn_from_bounce((string) $message['to_email'], (string) ($meta['reason'] ?? '') . "\n" . (string) ($meta['diagnostic'] ?? ''));
+        }
     }
     advance_message_status($message, $type);
     advance_contact_status($message['campaign_id'] ? (int) $message['campaign_id'] : null, $message['customer_id'] ? (int) $message['customer_id'] : null, $type);

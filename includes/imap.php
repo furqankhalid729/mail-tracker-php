@@ -233,6 +233,8 @@ function process_inbound_email(array $account, array $parsed, ?string $providerI
                     'reason' => 'Bounce: ' . ($parsed['bounce_status'] ?: mb_substr($parsed['subject'], 0, 120)),
                     'bounce_type' => 'hard',
                     'source' => 'imap',
+                    // bounce text, used to spot domain-level failures (email_learn_from_bounce)
+                    'diagnostic' => mb_substr(trim($parsed['delivery_status'] . "\n" . $parsed['text']), 0, 1500),
                 ], 'bounced:' . $orig['id']);
                 return 'bounce';
             }

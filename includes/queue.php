@@ -248,7 +248,7 @@ function process_email_queue(?int $limitOverride = null): array
         }
 
         // Suppression: unsubscribed / bounced recipients never receive campaign mail
-        $customer = $message['customer_id'] ? q_one('SELECT id, email, status, unsubscribed_at, email_check, email_checked_address, email_checked_at FROM customers WHERE id = ?', [$message['customer_id']]) : null;
+        $customer = $message['customer_id'] ? q_one('SELECT id, workspace_id, email, status, unsubscribed_at, email_check, email_checked_address, email_checked_at FROM customers WHERE id = ?', [$message['customer_id']]) : null;
         if (($message['campaign_id'] || $message['ai_campaign_id']) && (!$customer || $customer['unsubscribed_at'] !== null || in_array($customer['status'], ['unsubscribed', 'bounced', 'invalid'], true))) {
             q("UPDATE email_messages SET status = 'cancelled', error_message = 'Recipient suppressed (unsubscribed, bounced or invalid email)', updated_at = ? WHERE id = ?", [now(), $message['id']]);
             complete_job((int) $job['id'], 'cancelled', 'Recipient suppressed');
@@ -315,7 +315,8 @@ function process_email_queue(?int $limitOverride = null): array
             }
         }
 
-        // SES email validation (campaign mail only), after the limits so we only pay for mail that would go out now
+        // Email validation (campaign mail only): free syntax/MX checks, then SES. After the limits so we only pay
+        // for mail that would go out now. A failed check marks the message failed (permanent, never auto-retried).
         if ($customer && ($message['campaign_id'] || $message['ai_campaign_id'])) {
             $gate = email_validation_gate($customer);
             if (isset($gate['defer'])) {
@@ -324,8 +325,8 @@ function process_email_queue(?int $limitOverride = null): array
                 continue;
             }
             if (!$gate['send']) {
-                q("UPDATE email_messages SET status = 'cancelled', error_message = ?, updated_at = ? WHERE id = ?", [mb_substr($gate['reason'], 0, 500), now(), $message['id']]);
-                complete_job((int) $job['id'], 'cancelled', $gate['reason']);
+                fail_message((int) $message['id'], $gate['reason']);
+                complete_job((int) $job['id'], 'failed', $gate['reason'], true);
                 $summary['invalid']++;
                 continue;
             }
