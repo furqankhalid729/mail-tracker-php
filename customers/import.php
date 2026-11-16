@@ -69,9 +69,14 @@ if (is_post() && in_array(input('action'), ['scan', 'process'], true)) {
     $emails = [];
     foreach ($rows as $row) {
         [$data, $custom] = import_map_row($state, $row);
-        $mapped[] = [$data, $custom];
-        if (is_valid_email($data['email'])) {
-            $emails[] = $data['email'];
+        // A cell may hold several addresses ("a@x.com, b@x.com"): one customer per address.
+        // With no valid address the row is kept as it is and counted as invalid.
+        [$cellEmails] = parse_email_list($data['email']);
+        foreach ($cellEmails ?: [$data['email']] as $email) {
+            $mapped[] = [array_merge($data, ['email' => $email]), $custom];
+            if (is_valid_email($email)) {
+                $emails[] = $email;
+            }
         }
     }
     $existing = [];
