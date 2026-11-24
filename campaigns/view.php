@@ -59,6 +59,7 @@ $viewUrl = fn(array $extra = []) => url('campaigns/view.php', array_merge(['id' 
             <button type="button" class="btn-secondary" @click="open = !open">More <?= icon('chevron-down', 'h-4 w-4') ?></button>
             <div x-show="open" x-cloak class="dropdown right-0">
                 <a href="<?= e(url('campaigns/edit.php', ['id' => $cid])) ?>" class="dropdown-item"><?= icon('pencil', 'h-4 w-4') ?> Edit settings</a>
+                <a href="<?= e(url('campaigns/create.php', ['follow_up' => $cid])) ?>" class="dropdown-item"><?= icon('send', 'h-4 w-4') ?> Follow-up campaign</a>
                 <?php if ($failedJobs): ?>
                     <form method="post" action="<?= e(url('campaigns/status.php')) ?>"><?= csrf_field() ?><input type="hidden" name="id" value="<?= $cid ?>"><button name="action" value="retry_failed" class="dropdown-item"><?= icon('bolt', 'h-4 w-4') ?> Retry <?= $failedJobs ?> failed</button></form>
                 <?php endif; ?>

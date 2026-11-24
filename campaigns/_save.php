@@ -51,4 +51,6 @@ if ($existing) {
 $id = db_insert('campaigns', $data + ['workspace_id' => $ws, 'status' => 'draft', 'created_by' => user_id(), 'created_at' => now()]);
 clear_old_input();
 flash('success', 'Campaign created. Now add contacts.');
-redirect(url('campaigns/contacts.php', ['id' => $id]));
+$followUpId = input_int('follow_up');
+$followUpId = $followUpId && owned_ids('campaigns', [$followUpId]) ? $followUpId : 0;
+redirect(url('campaigns/contacts.php', $followUpId ? ['id' => $id, 'engaged_campaign' => $followUpId, 'engagement' => 'not_opened'] : ['id' => $id]));

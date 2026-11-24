@@ -61,6 +61,9 @@ $allTags = workspace_tags($ws);
 $countries = q_col("SELECT DISTINCT country FROM customers WHERE workspace_id = ? AND country IS NOT NULL AND country <> '' ORDER BY country LIMIT 300", [$ws]);
 $sources = q_col("SELECT DISTINCT source FROM customers WHERE workspace_id = ? AND source IS NOT NULL AND source <> '' ORDER BY source LIMIT 100", [$ws]);
 $contactCount = (int) q_val('SELECT COUNT(*) FROM campaign_contacts WHERE campaign_id = ?', [$cid]);
+$otherCampaigns = q_all('SELECT id, name, status FROM campaigns WHERE workspace_id = ? AND id <> ? ORDER BY id DESC LIMIT 300', [$ws, $cid]);
+$preEngaged = input_int('engaged_campaign');
+$preEngagement = (string) input('engagement', '');
 
 $page_title = 'Add contacts · ' . $campaign['name'];
 $active_nav = 'campaigns';
@@ -110,6 +113,24 @@ require __DIR__ . '/../includes/header.php';
                     <select name="source" class="input"><option value="">Any</option><?php foreach ($sources as $s): ?><option><?= e($s) ?></option><?php endforeach; ?></select></div>
                 <div><label class="label">Company contains</label><input name="company" class="input" placeholder="Inc."></div>
                 <div><label class="label">Search</label><input name="q" class="input" placeholder="name, email…"></div>
+            </div>
+            <div>
+                <label class="label">Email engagement in another campaign</label>
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <select name="engaged_campaign" class="input">
+                        <option value="">Any campaign (no engagement filter)</option>
+                        <?php foreach ($otherCampaigns as $oc): ?>
+                            <option value="<?= (int) $oc['id'] ?>" <?= $preEngaged === (int) $oc['id'] ? 'selected' : '' ?>><?= e($oc['name']) ?><?= $oc['status'] === 'archived' ? ' (archived)' : '' ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <select name="engagement" class="input">
+                        <option value="">Choose…</option>
+                        <?php foreach (CUSTOMER_ENGAGEMENT_OPTIONS as $v => $label): ?>
+                            <option value="<?= e($v) ?>" <?= $preEngagement === $v ? 'selected' : '' ?>><?= e($label) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <p class="mt-1 text-xs text-slate-400">For follow-ups. Pick both a campaign and a status. Opens are approximate: some mail apps load images automatically, others block them.</p>
             </div>
             <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" class="checkbox" name="exclude_suppressed" value="1" checked> Exclude unsubscribed, bounced &amp; archived (status = active)</label>
             <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" class="checkbox" name="confirm_all" value="1"> Allow adding all customers when no other filter is set</label>

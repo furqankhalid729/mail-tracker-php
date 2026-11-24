@@ -11,6 +11,16 @@ if (is_post()) {
 }
 
 $campaign = [];
+// "Follow up" from a campaign's More menu: copy its sender and limits; the template is left for the user to pick.
+$followUp = input_int('follow_up') ? q_one('SELECT * FROM campaigns WHERE id = ? AND workspace_id = ?', [input_int('follow_up'), $ws]) : null;
+if ($followUp) {
+    $campaign = [
+        'name' => mb_substr('Follow-up: ' . $followUp['name'], 0, 150),
+        'mail_account_id' => $followUp['mail_account_id'],
+        'daily_limit' => $followUp['daily_limit'],
+        'max_per_domain' => $followUp['max_per_domain'],
+    ];
+}
 $errors = get_errors();
 $accounts = q_all("SELECT id, name, email FROM mail_accounts WHERE workspace_id = ? AND status <> 'disconnected' ORDER BY name", [$ws]);
 $templates = q_all('SELECT id, name FROM email_templates WHERE workspace_id = ? ORDER BY name', [$ws]);
@@ -25,5 +35,10 @@ require __DIR__ . '/../includes/header.php';
         <h1 class="page-title">New campaign</h1>
     </div>
 </div>
-<form method="post"><?php require __DIR__ . '/_form.php'; ?></form>
+<?php if ($followUp): ?>
+    <div class="mb-4 max-w-2xl rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
+        Follow-up to <b><?= e($followUp['name']) ?></b>. Pick a new template. Next you will choose who gets it: opened, not opened, clicked, and so on.
+    </div>
+<?php endif; ?>
+<form method="post"><?php if ($followUp): ?><input type="hidden" name="follow_up" value="<?= (int) $followUp['id'] ?>"><?php endif; ?><?php require __DIR__ . '/_form.php'; ?></form>
 <?php require __DIR__ . '/../includes/footer.php';

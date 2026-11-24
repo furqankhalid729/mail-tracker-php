@@ -6,7 +6,18 @@ declare(strict_types=1);
  */
 
 /** Filter keys accepted from the request. */
-const CUSTOMER_FILTER_KEYS = ['q', 'tags', 'tag_mode', 'status', 'crm_status', 'country', 'company', 'has_company', 'email_check', 'source', 'campaign_id', 'not_in_campaign', 'created_from', 'created_to'];
+const CUSTOMER_FILTER_KEYS = ['q', 'tags', 'tag_mode', 'status', 'crm_status', 'country', 'company', 'has_company', 'email_check', 'source', 'campaign_id', 'not_in_campaign', 'engaged_campaign', 'engagement', 'created_from', 'created_to'];
+
+/** "Email engagement in campaign X" filter options (value => label). Based on email_events, like the campaign stat cards. */
+const CUSTOMER_ENGAGEMENT_OPTIONS = [
+    'sent' => 'Was sent the email',
+    'opened' => 'Opened',
+    'not_opened' => 'Sent but not opened',
+    'clicked' => 'Clicked a link',
+    'replied' => 'Replied',
+    'not_replied' => 'Sent but no reply',
+    'bounced' => 'Bounced',
+];
 
 function customer_filters_from_request(): array
 {
@@ -16,6 +27,10 @@ function customer_filters_from_request(): array
         if ($v !== null && $v !== '' && $v !== []) {
             $f[$k] = $v;
         }
+    }
+    // The engagement filter needs both halves; half of it would otherwise count as a "real" filter and match everyone.
+    if (empty($f['engaged_campaign']) || (int) $f['engaged_campaign'] <= 0 || !isset(CUSTOMER_ENGAGEMENT_OPTIONS[$f['engagement'] ?? ''])) {
+        unset($f['engaged_campaign'], $f['engagement']);
     }
     return $f;
 }
@@ -89,6 +104,27 @@ function customer_filter_sql(int $wsId, array $f): array
     if (!empty($f['not_in_campaign'])) {
         $where[] = 'NOT EXISTS (SELECT 1 FROM campaign_contacts cc WHERE cc.customer_id = c.id AND cc.campaign_id = ?)';
         $params[] = (int) $f['not_in_campaign'];
+    }
+    if (!empty($f['engaged_campaign']) && isset(CUSTOMER_ENGAGEMENT_OPTIONS[$f['engagement'] ?? ''])) {
+        // Customers with (or without) an event of these types in that campaign. customer_id IS NOT NULL keeps NOT IN safe.
+        $events = fn(array $types) => 'SELECT e.customer_id FROM email_events e WHERE e.workspace_id = ? AND e.campaign_id = ? AND e.customer_id IS NOT NULL AND e.type IN (' . placeholders($types) . ')';
+        $camp = (int) $f['engaged_campaign'];
+        [$has, $hasNot] = match ($f['engagement']) {
+            'sent' => [['sent'], []],
+            'opened' => [['opened'], []],
+            // A click or reply means they read it even if the open pixel was blocked.
+            'not_opened' => [['sent'], ['opened', 'clicked', 'replied', 'bounced', 'failed']],
+            'clicked' => [['clicked'], []],
+            'replied' => [['replied'], []],
+            'not_replied' => [['sent'], ['replied', 'bounced', 'failed']],
+            'bounced' => [['bounced'], []],
+        };
+        $where[] = 'c.id IN (' . $events($has) . ')';
+        array_push($params, $wsId, $camp, ...$has);
+        if ($hasNot) {
+            $where[] = 'c.id NOT IN (' . $events($hasNot) . ')';
+            array_push($params, $wsId, $camp, ...$hasNot);
+        }
     }
     if (!empty($f['created_from'])) {
         $where[] = 'c.created_at >= ?';
