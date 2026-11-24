@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 const CRM_STATUSES = ['New', 'Contacted', 'Interested', 'Qualified', 'Follow Up', 'Won', 'Lost'];
-const SYSTEM_STATUSES = ['queued', 'sent', 'delivered', 'opened', 'clicked', 'replied', 'bounced', 'failed'];
+const SYSTEM_STATUSES = ['queued', 'sent', 'delivered', 'opened', 'clicked', 'replied', 'bounced', 'failed', 'skipped'];
 const CUSTOMER_STATUSES = ['active', 'unsubscribed', 'bounced', 'invalid', 'archived'];
 const CAMPAIGN_STATUSES = ['draft', 'active', 'paused', 'completed', 'archived'];
 const EVENT_TYPES = ['queued', 'sent', 'delivered', 'opened', 'clicked', 'replied', 'bounced', 'failed', 'unsubscribed'];

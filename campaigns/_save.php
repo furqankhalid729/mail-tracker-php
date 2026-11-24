@@ -1,8 +1,9 @@
 <?php
 defined('APP_ROOT') || exit;
 /** Expects $ws, $existing (array|null). */
-$errors = validate($_POST, ['name' => 'required|max:150', 'description' => 'max:2000', 'daily_limit' => 'int|between:1,10000'], ['daily_limit' => 'Daily limit']);
+$errors = validate($_POST, ['name' => 'required|max:150', 'description' => 'max:2000', 'daily_limit' => 'int|between:1,10000', 'max_per_domain' => 'int|between:1,100'], ['daily_limit' => 'Daily limit', 'max_per_domain' => 'Max contacts per domain']);
 $dailyLimit = input_int('daily_limit') ?: null; // empty = no campaign cap
+$maxPerDomain = input_int('max_per_domain') ?: null; // empty = every contact at a domain is emailed
 $accountId = input_int('mail_account_id') ?: null;
 $templateId = input_int('template_id') ?: null;
 if ($accountId && !owned_ids('mail_accounts', [$accountId])) {
@@ -25,6 +26,7 @@ $data = [
     'mail_account_id' => $accountId,
     'template_id' => $templateId,
     'daily_limit' => $dailyLimit,
+    'max_per_domain' => $maxPerDomain,
     'updated_at' => now(),
 ];
 if ($existing) {
@@ -33,6 +35,11 @@ if ($existing) {
     $oldLimit = $existing['daily_limit'] === null ? null : (int) $existing['daily_limit'];
     if ($oldLimit !== null && ($dailyLimit === null || $dailyLimit > $oldLimit)) {
         release_campaign_deferred_jobs((int) $existing['id']);
+    }
+    // Per-domain cap changed → skipped contacts are re-evaluated by the queue builder (already queued mail is kept)
+    $oldPerDomain = ($existing['max_per_domain'] ?? null) === null ? null : (int) $existing['max_per_domain'];
+    if ($oldPerDomain !== $maxPerDomain) {
+        campaign_reset_domain_skips((int) $existing['id']);
     }
     // Not-yet-sent messages follow a sender change
     if ($accountId && (int) $existing['mail_account_id'] !== $accountId) {

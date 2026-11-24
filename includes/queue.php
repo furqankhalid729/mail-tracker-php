@@ -25,20 +25,45 @@ function queue_campaign_contacts(int $campaignId, int $limit = QUEUE_BUILD_CHUNK
         return 0;
     }
 
-    $contacts = q_all(
-        "SELECT cc.id AS cc_id, c.* FROM campaign_contacts cc
-         JOIN customers c ON c.id = cc.customer_id
-         WHERE cc.campaign_id = ? AND cc.last_email_id IS NULL AND cc.system_status IS NULL
-           AND c.unsubscribed_at IS NULL AND c.status = 'active'
-         ORDER BY cc.id LIMIT ?",
-        [$campaignId, $limit]
-    );
+    // Per-domain cap: best contacts of each domain first, the ones over the cap are marked 'skipped'
+    $cap = campaign_domain_cap($campaign);
+    [$orderSql, $orderParams] = $cap ? campaign_domain_preference_sql() : ['cc.id', []];
     $queued = 0;
+    $skipped = 0;
+    do {
+        $contacts = q_all(
+            "SELECT cc.id AS cc_id, c.* FROM campaign_contacts cc
+             JOIN customers c ON c.id = cc.customer_id
+             WHERE cc.campaign_id = ? AND cc.last_email_id IS NULL AND cc.system_status IS NULL
+               AND c.unsubscribed_at IS NULL AND c.status = 'active'
+             ORDER BY $orderSql LIMIT ?",
+            [$campaignId, ...$orderParams, $limit - $queued]
+        );
+        $skippedBefore = $skipped;
+        queue_campaign_contact_rows($campaign, $template, $account, $contacts, $cap, $queued, $skipped);
+        // A batch that was partly skipped leaves room: fetch more so a chunk still queues up to $limit
+    } while ($contacts && $skipped > $skippedBefore && $queued < $limit);
+    return $queued;
+}
+
+/** Build messages for the given contact rows (see queue_campaign_contacts); updates the counters. */
+function queue_campaign_contact_rows(array $campaign, array $template, array $account, array $contacts, int $cap, int &$queued, int &$skipped): void
+{
     foreach ($contacts as $customer) {
-        transaction(function () use ($campaign, $template, $account, $customer, &$queued) {
+        transaction(function () use ($campaign, $template, $account, $customer, $cap, &$queued, &$skipped) {
+            if ($cap) {
+                // One builder per capped campaign at a time, so two can't both fill the last slot of a domain
+                q_one('SELECT id FROM campaigns WHERE id = ? FOR UPDATE', [$campaign['id']]);
+            }
             // Re-check under lock so two concurrent builders can't double-queue a contact
-            $locked = q_one('SELECT last_email_id FROM campaign_contacts WHERE id = ? FOR UPDATE', [$customer['cc_id']]);
-            if (!$locked || $locked['last_email_id']) {
+            $locked = q_one('SELECT last_email_id, system_status FROM campaign_contacts WHERE id = ? FOR UPDATE', [$customer['cc_id']]);
+            if (!$locked || $locked['last_email_id'] || $locked['system_status'] !== null) {
+                return;
+            }
+            $domain = $cap ? campaign_domain_key((string) $customer['email']) : null;
+            if ($domain !== null && campaign_domain_used((int) $campaign['id'], $domain) >= $cap) {
+                q("UPDATE campaign_contacts SET system_status = 'skipped', updated_at = ? WHERE id = ?", [now(), $customer['cc_id']]);
+                $skipped++;
                 return;
             }
             $subject = render_vars((string) $template['subject'], $customer);
@@ -63,7 +88,6 @@ function queue_campaign_contacts(int $campaignId, int $limit = QUEUE_BUILD_CHUNK
             $queued++;
         });
     }
-    return $queued;
 }
 
 /** How many contacts of a campaign still need a message built. */

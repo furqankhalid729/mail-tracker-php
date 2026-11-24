@@ -138,3 +138,113 @@ function campaign_daily_series(int $campaignId, int $days = 30): array
     }
     return $series;
 }
+
+/* ---------------------------------------------------------------------------
+ * Per-domain cap (campaigns.max_per_domain)
+ *
+ * Several customers at one company domain (pr@lomi.com, partnerships@lomi.com) would all get the same
+ * campaign email. With a cap, only the best N of them are queued; the rest are marked 'skipped' and kept
+ * as backups. A backup is queued when an emailed contact at that domain bounces or fails.
+ * Webmail domains (gmail.com…) are never grouped: those addresses belong to unrelated people.
+ * ------------------------------------------------------------------------- */
+
+/** Statuses that use up a slot of the domain's cap (queued or already emailed and not bounced/failed). */
+const CAMPAIGN_DOMAIN_SLOT_STATUSES = ['queued', 'sent', 'delivered', 'opened', 'clicked', 'replied'];
+
+/** The campaign's per-domain cap; 0 = no cap. */
+function campaign_domain_cap(array $campaign): int
+{
+    return max(0, (int) ($campaign['max_per_domain'] ?? 0));
+}
+
+/** The company domain an address is grouped by, or null when it must not be grouped (webmail, no domain). */
+function campaign_domain_key(string $email): ?string
+{
+    $at = strrchr($email, '@');
+    $domain = $at === false ? '' : rtrim(strtolower(trim(substr($at, 1))), '.');
+    if ($domain === '' || in_array($domain, EMAIL_SHARED_PROVIDERS, true)) {
+        return null;
+    }
+    return $domain;
+}
+
+/** SQL ORDER BY that puts the best contact of a domain first: named people before info@/sales@, then the SES result, then oldest. */
+function campaign_domain_preference_sql(): array
+{
+    $sql = 'CASE WHEN SUBSTRING_INDEX(c.email, \'@\', 1) IN (' . placeholders(EMAIL_ROLE_LOCALS) . ') THEN 1 ELSE 0 END,
+            CASE c.email_check WHEN \'valid\' THEN 0 WHEN \'risky\' THEN 2 WHEN \'invalid\' THEN 3 ELSE 1 END,
+            cc.id';
+    return [$sql, EMAIL_ROLE_LOCALS];
+}
+
+/** LIKE pattern that matches every address at $domain. */
+function campaign_domain_like(string $domain): string
+{
+    return '%@' . addcslashes($domain, '%_\\');
+}
+
+/** How many contacts at $domain hold a slot of the cap in this campaign. */
+function campaign_domain_used(int $campaignId, string $domain): int
+{
+    return (int) q_val(
+        'SELECT COUNT(*) FROM campaign_contacts cc JOIN customers c ON c.id = cc.customer_id
+         WHERE cc.campaign_id = ? AND cc.system_status IN (' . placeholders(CAMPAIGN_DOMAIN_SLOT_STATUSES) . ') AND c.email LIKE ?',
+        [$campaignId, ...CAMPAIGN_DOMAIN_SLOT_STATUSES, campaign_domain_like($domain)]
+    );
+}
+
+/** True when the whole domain is blocked after a domain-level bounce (no MX…): backups there would bounce too. */
+function campaign_domain_blocked(string $domain): bool
+{
+    try {
+        return (bool) q_val(
+            'SELECT 1 FROM blocked_email_domains WHERE domain = ? AND last_bounced_at >= ?',
+            [$domain, date('Y-m-d H:i:s', time() - EMAIL_DOMAIN_BLOCK_DAYS * 86400)]
+        );
+    } catch (Throwable) {
+        return false; // migration 020 not imported yet
+    }
+}
+
+/**
+ * A contact of a capped campaign bounced or failed: free its slot by turning the next skipped backup(s)
+ * at the same domain back into "not queued", so cron queues them. A completed campaign is reopened for it.
+ */
+function campaign_promote_domain_backup(int $campaignId, int $customerId): void
+{
+    $campaign = q_one('SELECT id, workspace_id, name, status, max_per_domain FROM campaigns WHERE id = ?', [$campaignId]);
+    $cap = $campaign ? campaign_domain_cap($campaign) : 0;
+    if (!$cap || in_array($campaign['status'], ['draft', 'archived'], true)) {
+        return;
+    }
+    $domain = campaign_domain_key((string) q_val('SELECT email FROM customers WHERE id = ?', [$customerId]));
+    if ($domain === null || campaign_domain_blocked($domain)) {
+        return;
+    }
+    $free = $cap - campaign_domain_used($campaignId, $domain);
+    if ($free <= 0) {
+        return;
+    }
+    [$orderSql, $orderParams] = campaign_domain_preference_sql();
+    $ids = q_col(
+        "SELECT cc.id FROM campaign_contacts cc JOIN customers c ON c.id = cc.customer_id
+         WHERE cc.campaign_id = ? AND cc.system_status = 'skipped' AND c.email LIKE ?
+           AND c.unsubscribed_at IS NULL AND c.status = 'active'
+         ORDER BY $orderSql LIMIT $free",
+        [$campaignId, campaign_domain_like($domain), ...$orderParams]
+    );
+    if (!$ids) {
+        return;
+    }
+    q("UPDATE campaign_contacts SET system_status = NULL, updated_at = ? WHERE id IN (" . placeholders($ids) . ") AND system_status = 'skipped'", [now(), ...$ids]);
+    if ($campaign['status'] === 'completed') {
+        q("UPDATE campaigns SET status = 'active', completed_at = NULL, updated_at = ? WHERE id = ? AND status = 'completed'", [now(), $campaignId]);
+        log_activity((int) $campaign['workspace_id'], 'campaign_started', 'Campaign "' . $campaign['name'] . '" reopened to email a backup contact at ' . $domain, null, $campaignId);
+    }
+}
+
+/** The cap changed: every skipped contact goes back to "not queued" and the queue builder decides again. */
+function campaign_reset_domain_skips(int $campaignId): void
+{
+    q("UPDATE campaign_contacts SET system_status = NULL, updated_at = ? WHERE campaign_id = ? AND system_status = 'skipped'", [now(), $campaignId]);
+}

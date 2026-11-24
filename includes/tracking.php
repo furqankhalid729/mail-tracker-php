@@ -131,6 +131,10 @@ function advance_contact_status(?int $campaignId, ?int $customerId, string $stat
         $data['last_email_id'] = $messageId;
     }
     db_update('campaign_contacts', $data, 'id = ?', [$cc['id']]);
+    // Per-domain cap: this contact no longer holds its domain's slot → the next backup there can be emailed
+    if ($apply && in_array($status, ['bounced', 'failed'], true) && !in_array($current, ['bounced', 'failed'], true)) {
+        campaign_promote_domain_backup($campaignId, $customerId);
+    }
 }
 
 /** Same forward-only rule for the message's own status column. */
