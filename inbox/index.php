@@ -77,19 +77,43 @@ require __DIR__ . '/../includes/header.php';
     <div class="mb-4 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-amber-200">No mailbox is set up for reply tracking. Add IMAP settings to an SMTP account or connect Gmail in <a class="font-medium underline" href="<?= e(url('mail-accounts/index.php')) ?>">Mail accounts</a>.</div>
 <?php endif; ?>
 
-<div class="card overflow-hidden">
+<div class="card overflow-hidden" x-data="bulkSelect(<?= (int) $total ?>)">
     <div class="flex flex-col gap-3 border-b border-slate-200 p-3 sm:flex-row sm:items-center sm:justify-between">
-        <div class="flex gap-1">
+        <div class="flex items-center gap-1">
+            <?php if ($threads): ?>
+                <input type="checkbox" class="checkbox mx-2" :checked="pageAllSelected" @change="togglePage($event)" aria-label="Select all on this page">
+            <?php endif; ?>
             <?php foreach (['replies' => 'Replies', 'unread' => 'Unread (' . $unreadCount . ')', 'all' => 'All conversations', 'sent' => 'Sent'] as $k => $l): ?>
                 <a href="<?= e(url('inbox/index.php', ['view' => $k, 'q' => $q])) ?>" class="rounded-md px-3 py-1.5 text-sm font-medium <?= $view === $k ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100' ?>"><?= e($l) ?></a>
             <?php endforeach; ?>
         </div>
-        <form class="w-full sm:w-72"><input type="hidden" name="view" value="<?= e($view) ?>"><input type="search" name="q" value="<?= e($q) ?>" class="input" placeholder="Search conversations…"></form>
+        <div class="flex w-full items-center gap-2 sm:w-auto">
+            <?php if ($unreadCount && $view !== 'sent'): ?>
+                <form method="post" action="<?= e(url('inbox/mark.php')) ?>" class="shrink-0" data-confirm="Mark all <?= number_format($unreadCount) ?> unread conversations as read?" data-confirm-button="Mark all read" data-confirm-danger="0">
+                    <?= csrf_field() ?><input type="hidden" name="all" value="1">
+                    <button class="btn-secondary btn-sm">Mark all as read</button>
+                </form>
+            <?php endif; ?>
+            <form class="w-full sm:w-72"><input type="hidden" name="view" value="<?= e($view) ?>"><input type="search" name="q" value="<?= e($q) ?>" class="input" placeholder="Search conversations…"></form>
+        </div>
     </div>
+    <!-- Bulk action bar -->
+    <form method="post" action="<?= e(url('inbox/mark.php')) ?>" x-show="selected.length > 0" x-cloak
+          class="flex flex-wrap items-center gap-2 border-b border-indigo-100 bg-indigo-50/60 px-4 py-2.5">
+        <?= csrf_field() ?>
+        <template x-for="id in selected" :key="id"><input type="hidden" name="ids[]" :value="id"></template>
+        <span class="text-sm font-medium text-indigo-900"><span x-text="selected.length"></span> selected</span>
+        <div class="ml-auto flex items-center gap-2">
+            <button name="action" value="read" class="btn-primary btn-sm">Mark as read</button>
+            <button name="action" value="unread" class="btn-secondary btn-sm">Mark as unread</button>
+            <button type="button" class="btn-ghost btn-sm" @click="clear()">Cancel</button>
+        </div>
+    </form>
     <ul class="divide-y divide-slate-100">
         <?php foreach ($threads as $t): $name = customer_name($t); ?>
-            <li>
-                <a href="<?= e(url('inbox/thread.php', ['id' => $t['id']])) ?>" class="flex items-start gap-3 px-4 py-3.5 hover:bg-slate-50 <?= $t['is_unread'] ? 'bg-indigo-50/40' : '' ?>">
+            <li class="flex items-start <?= $t['is_unread'] ? 'bg-indigo-50/40' : '' ?>">
+                <label class="flex shrink-0 cursor-pointer items-center self-stretch pl-4 pr-1"><input type="checkbox" class="checkbox" data-row-id value="<?= (int) $t['id'] ?>" x-model="selected" aria-label="Select conversation"></label>
+                <a href="<?= e(url('inbox/thread.php', ['id' => $t['id']])) ?>" class="flex min-w-0 flex-1 items-start gap-3 py-3.5 pl-2 pr-4 hover:bg-slate-50">
                     <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold <?= avatar_color((string) $t['email']) ?>"><?= e(initials($name)) ?></span>
                     <div class="min-w-0 flex-1">
                         <div class="flex items-baseline justify-between gap-3">
