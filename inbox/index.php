@@ -79,15 +79,15 @@ require __DIR__ . '/../includes/header.php';
 
 <div class="card overflow-hidden" x-data="bulkSelect(<?= (int) $total ?>)">
     <div class="flex flex-col gap-3 border-b border-slate-200 p-3 sm:flex-row sm:items-center sm:justify-between">
-        <div class="flex items-center gap-1">
+        <div class="flex flex-wrap items-center gap-1">
             <?php if ($threads): ?>
-                <input type="checkbox" class="checkbox mx-2" :checked="pageAllSelected" @change="togglePage($event)" aria-label="Select all on this page">
+                <label class="flex cursor-pointer items-center pl-1 pr-2"><input type="checkbox" class="checkbox" :checked="pageAllSelected" @change="togglePage($event)" aria-label="Select all on this page"></label>
             <?php endif; ?>
             <?php foreach (['replies' => 'Replies', 'unread' => 'Unread (' . $unreadCount . ')', 'all' => 'All conversations', 'sent' => 'Sent'] as $k => $l): ?>
-                <a href="<?= e(url('inbox/index.php', ['view' => $k, 'q' => $q])) ?>" class="rounded-md px-3 py-1.5 text-sm font-medium <?= $view === $k ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100' ?>"><?= e($l) ?></a>
+                <a href="<?= e(url('inbox/index.php', ['view' => $k, 'q' => $q])) ?>" class="whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium <?= $view === $k ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100' ?>"><?= e($l) ?></a>
             <?php endforeach; ?>
         </div>
-        <div class="flex w-full items-center gap-2 sm:w-auto">
+        <div class="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
             <?php if ($unreadCount && $view !== 'sent'): ?>
                 <form method="post" action="<?= e(url('inbox/mark.php')) ?>" class="shrink-0" data-confirm="Mark all <?= number_format($unreadCount) ?> unread conversations as read?" data-confirm-button="Mark all read" data-confirm-danger="0">
                     <?= csrf_field() ?><input type="hidden" name="all" value="1">
@@ -111,9 +111,9 @@ require __DIR__ . '/../includes/header.php';
     </form>
     <ul class="divide-y divide-slate-100">
         <?php foreach ($threads as $t): $name = customer_name($t); ?>
-            <li class="flex items-start <?= $t['is_unread'] ? 'bg-indigo-50/40' : '' ?>">
-                <label class="flex shrink-0 cursor-pointer items-center self-stretch pl-4 pr-1"><input type="checkbox" class="checkbox" data-row-id value="<?= (int) $t['id'] ?>" x-model="selected" aria-label="Select conversation"></label>
-                <a href="<?= e(url('inbox/thread.php', ['id' => $t['id']])) ?>" class="flex min-w-0 flex-1 items-start gap-3 py-3.5 pl-2 pr-4 hover:bg-slate-50">
+            <li class="flex items-stretch hover:bg-slate-50 <?= $t['is_unread'] ? 'bg-indigo-50/40' : '' ?>" :class="selected.includes('<?= (int) $t['id'] ?>') && '!bg-indigo-50'">
+                <label class="flex shrink-0 cursor-pointer items-start pl-4 pr-1 pt-6"><input type="checkbox" class="checkbox" data-row-id value="<?= (int) $t['id'] ?>" x-model="selected" aria-label="Select conversation"></label>
+                <a href="<?= e(url('inbox/thread.php', ['id' => $t['id']])) ?>" class="flex min-w-0 flex-1 items-start gap-3 py-3.5 pl-2 pr-4">
                     <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold <?= avatar_color((string) $t['email']) ?>"><?= e(initials($name)) ?></span>
                     <div class="min-w-0 flex-1">
                         <div class="flex items-baseline justify-between gap-3">
